@@ -1,18 +1,37 @@
-import { motion } from "framer-motion";
-import { useInView } from "framer-motion";
-import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, X, Sparkles, Building2, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { FadeIn, StaggerContainer, staggerItemVariants, HoverCard } from "@/components/motion";
+import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { LucideIcon } from "lucide-react";
 
-const plans = [
+interface PlanFeature {
+  name: string;
+  included: boolean;
+}
+
+interface Plan {
+  name: string;
+  price: string;
+  period: string;
+  description: string;
+  icon: LucideIcon;
+  features: PlanFeature[];
+  popular: boolean;
+  cta: string;
+  gradient: string;
+}
+
+const plans: Plan[] = [
   {
     name: "Basic",
     price: "500,000",
     period: "annually",
     description: "Perfect for small institutions getting started",
     icon: Building2,
+    gradient: "from-slate-500 to-slate-600",
     features: [
       { name: "Up to 5,000 students", included: true },
       { name: "Manual attendance tracking", included: true },
@@ -34,6 +53,7 @@ const plans = [
     period: "annually",
     description: "For growing institutions with advanced needs",
     icon: Sparkles,
+    gradient: "from-primary to-blue-600",
     features: [
       { name: "Up to 50,000 students", included: true },
       { name: "AI PDF Assistant", included: true },
@@ -55,6 +75,7 @@ const plans = [
     period: "annually",
     description: "For large institutions requiring full capabilities",
     icon: Crown,
+    gradient: "from-amber-500 to-orange-500",
     features: [
       { name: "Unlimited students", included: true },
       { name: "Full AI capabilities", included: true },
@@ -76,59 +97,70 @@ function PricingCard({
   plan,
   index,
 }: {
-  plan: (typeof plans)[0];
+  plan: Plan;
   index: number;
 }) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-50px" });
+  const reducedMotion = useReducedMotion();
 
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.5, delay: index * 0.15 }}
+  const CardContent = (
+    <motion.article
+      variants={staggerItemVariants}
       className={cn(
-        "relative glass-card p-8 hover-lift",
-        plan.popular && "ring-2 ring-primary scale-105 lg:scale-110"
+        "relative glass-premium p-8",
+        plan.popular && "ring-2 ring-primary lg:scale-105"
       )}
+      aria-labelledby={`plan-name-${index}`}
     >
+      {/* Popular badge */}
       {plan.popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-          <span className="bg-primary text-primary-foreground text-sm font-medium px-4 py-1 rounded-full">
+          <span className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-sm font-medium px-4 py-1.5 rounded-full shadow-lg">
             Most Popular
           </span>
         </div>
       )}
 
+      {/* Plan header */}
       <div className="text-center mb-8">
         <div
           className={cn(
-            "inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4",
-            plan.popular ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+            "inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg",
+            `bg-gradient-to-br ${plan.gradient}`
           )}
+          aria-hidden="true"
         >
-          <plan.icon className="h-7 w-7" />
+          <plan.icon className="h-8 w-8 text-white" />
         </div>
-        <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+        <h3 
+          id={`plan-name-${index}`}
+          className="text-2xl font-bold mb-2"
+        >
+          {plan.name}
+        </h3>
         <p className="text-muted-foreground text-sm">{plan.description}</p>
       </div>
 
+      {/* Price */}
       <div className="text-center mb-8">
         <div className="flex items-baseline justify-center gap-1">
-          <span className="text-2xl font-medium">₦</span>
+          <span className="text-2xl font-medium text-muted-foreground">₦</span>
           <span className="text-5xl font-bold">{plan.price}</span>
         </div>
         <span className="text-muted-foreground text-sm">per {plan.period}</span>
       </div>
 
-      <ul className="space-y-3 mb-8">
+      {/* Features list */}
+      <ul className="space-y-3 mb-8" role="list" aria-label={`${plan.name} features`}>
         {plan.features.map((feature) => (
           <li key={feature.name} className="flex items-center gap-3">
             {feature.included ? (
-              <Check className="h-5 w-5 text-success flex-shrink-0" />
+              <div className="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center flex-shrink-0">
+                <Check className="h-3 w-3 text-success" aria-hidden="true" />
+              </div>
             ) : (
-              <X className="h-5 w-5 text-muted-foreground/50 flex-shrink-0" />
+              <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                <X className="h-3 w-3 text-muted-foreground/50" aria-hidden="true" />
+              </div>
             )}
             <span
               className={cn(
@@ -137,15 +169,17 @@ function PricingCard({
               )}
             >
               {feature.name}
+              {!feature.included && <span className="sr-only"> (not included)</span>}
             </span>
           </li>
         ))}
       </ul>
 
+      {/* CTA Button */}
       <Button
         asChild
         className={cn(
-          "w-full",
+          "w-full h-12",
           plan.popular ? "btn-glow" : ""
         )}
         variant={plan.popular ? "default" : "outline"}
@@ -154,69 +188,71 @@ function PricingCard({
           {plan.cta}
         </Link>
       </Button>
-    </motion.div>
+    </motion.article>
+  );
+
+  return reducedMotion ? CardContent : (
+    <HoverCard hoverScale={plan.popular ? 1.02 : 1.03}>
+      {CardContent}
+    </HoverCard>
   );
 }
 
 export function PricingPreview() {
-  const headerRef = useRef(null);
-  const isHeaderInView = useInView(headerRef, { once: true, margin: "-100px" });
-
   return (
-    <section className="py-20 lg:py-32">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+    <section 
+      className="py-20 lg:py-32 relative overflow-hidden"
+      aria-labelledby="pricing-heading"
+    >
+      {/* Background */}
+      <div className="absolute inset-0 mesh-gradient opacity-30" aria-hidden="true" />
+
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section Header */}
-        <div ref={headerRef} className="text-center max-w-3xl mx-auto mb-16">
-          <motion.span
-            initial={{ opacity: 0, y: 20 }}
-            animate={isHeaderInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5 }}
-            className="inline-block text-sm font-medium text-primary mb-4"
-          >
-            SIMPLE PRICING
-          </motion.span>
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={isHeaderInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6"
-          >
-            Choose the Right Plan for{" "}
-            <span className="gradient-text">Your Institution</span>
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={isHeaderInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-lg text-muted-foreground"
-          >
-            All plans include core features. Upgrade anytime as your institution grows.
-          </motion.p>
+        <div className="text-center max-w-3xl mx-auto mb-16">
+          <FadeIn>
+            <span className="inline-block text-sm font-semibold text-primary mb-4 tracking-wider uppercase">
+              Simple Pricing
+            </span>
+          </FadeIn>
+          <FadeIn delay={0.1}>
+            <h2 
+              id="pricing-heading"
+              className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-6"
+            >
+              Choose the Right Plan for{" "}
+              <span className="gradient-text">Your Institution</span>
+            </h2>
+          </FadeIn>
+          <FadeIn delay={0.2}>
+            <p className="text-lg text-muted-foreground">
+              All plans include core features. Upgrade anytime as your institution grows.
+            </p>
+          </FadeIn>
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid lg:grid-cols-3 gap-8 lg:gap-6 max-w-6xl mx-auto items-start">
+        <StaggerContainer 
+          className="grid lg:grid-cols-3 gap-8 lg:gap-6 max-w-6xl mx-auto items-start"
+          staggerDelay={0.1}
+        >
           {plans.map((plan, index) => (
             <PricingCard key={plan.name} plan={plan} index={index} />
           ))}
-        </div>
+        </StaggerContainer>
 
         {/* View All Plans Link */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.5 }}
-          className="text-center mt-12"
-        >
-          <Link
-            to="/pricing"
-            className="text-primary hover:underline font-medium inline-flex items-center gap-2"
-          >
-            Compare all features
-            <span className="text-lg">→</span>
-          </Link>
-        </motion.div>
+        <FadeIn delay={0.5}>
+          <div className="text-center mt-12">
+            <Link
+              to="/pricing"
+              className="text-primary hover:underline font-medium inline-flex items-center gap-2 focus-ring rounded-lg px-2 py-1"
+            >
+              Compare all features
+              <span className="text-lg" aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </FadeIn>
       </div>
     </section>
   );
