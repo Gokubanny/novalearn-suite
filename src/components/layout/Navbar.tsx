@@ -66,10 +66,10 @@ export function Navbar() {
               className="flex items-center gap-2"
             >
               <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">S</span>
+                <span className="text-primary-foreground font-bold text-xl">N</span>
               </div>
               <span className="font-bold text-xl text-foreground hidden sm:block">
-                SmartSchool
+                NovaLearn Suite
               </span>
             </motion.div>
           </Link>
