@@ -9,19 +9,24 @@ import { lazy, Suspense } from "react";
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// Loading fallback
+// Loading fallback with accessibility
 function PageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div 
+      className="min-h-screen flex items-center justify-center bg-background"
+      role="status"
+      aria-label="Loading page"
+    >
       <div className="flex flex-col items-center gap-4">
         <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center animate-pulse">
-          <span className="text-primary-foreground font-bold text-2xl">S</span>
+          <span className="text-primary-foreground font-bold text-2xl">N</span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1" aria-hidden="true">
           <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
           <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
           <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
         </div>
+        <span className="sr-only">Loading...</span>
       </div>
     </div>
   );
@@ -35,6 +40,14 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        {/* Skip to main content link for keyboard users */}
+        <a 
+          href="#main-content" 
+          className="skip-link"
+        >
+          Skip to main content
+        </a>
+        
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
