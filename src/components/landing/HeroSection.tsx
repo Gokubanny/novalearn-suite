@@ -48,6 +48,7 @@ export function HeroSection() {
           >
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-sm font-medium text-foreground">
+              NovaLearn Suite —
               Trusted by 500+ Nigerian Schools
             </span>
           </motion.div>

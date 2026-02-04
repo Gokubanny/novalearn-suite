@@ -48,7 +48,7 @@ export function CTASection() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="text-lg sm:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto"
           >
-            Join 500+ schools already using SmartSchool to streamline their academic 
+            Join 500+ schools already using NovaLearn Suite to streamline their academic 
             operations and enhance student learning outcomes.
           </motion.p>
 

@@ -60,8 +60,8 @@ export function Footer() {
                 viewport={{ once: true }}
                 className="text-2xl lg:text-3xl font-bold mb-3"
               >
-                Stay Updated with SmartSchool
-              </motion.h3>
+              Stay Updated with NovaLearn Suite
+            </motion.h3>
               <p className="text-muted-foreground">
                 Get the latest news, updates, and educational insights delivered to your inbox.
               </p>
@@ -93,9 +93,9 @@ export function Footer() {
           <div className="col-span-2 md:col-span-3 lg:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">S</span>
+                <span className="text-primary-foreground font-bold text-xl">N</span>
               </div>
-              <span className="font-bold text-xl">SmartSchool</span>
+              <span className="font-bold text-xl">NovaLearn Suite</span>
             </Link>
             <p className="text-muted-foreground mb-6 max-w-sm">
               Empowering educational institutions with AI-powered tools, biometric attendance, 
@@ -103,11 +103,11 @@ export function Footer() {
             </p>
             <div className="space-y-3">
               <a
-                href="mailto:info@smartschool.ng"
+                href="mailto:info@novalearn.ng"
                 className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Mail className="h-5 w-5" />
-                info@smartschool.ng
+                info@novalearn.ng
               </a>
               <a
                 href="tel:+2341234567890"
@@ -195,7 +195,7 @@ export function Footer() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} SmartSchool. All rights reserved.
+              © {new Date().getFullYear()} NovaLearn Suite. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               {socialLinks.map((social) => (
