@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { FadeIn, StaggerContainer, staggerItemVariants, HoverCard } from "@/components/motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { ImageWithFallback } from "@/components/ui/image-with-fallback";
+import { featureImages } from "@/lib/images";
 
 interface Feature {
   icon: LucideIcon;
@@ -119,19 +121,30 @@ function FeatureCard({
   index: number;
 }) {
   const reducedMotion = useReducedMotion();
+  const imageUrl = featureImages[feature.title];
 
   const CardContent = (
     <motion.article
       variants={staggerItemVariants}
-      className="group feature-card"
+      className="group feature-card overflow-hidden"
       aria-labelledby={`feature-title-${index}`}
     >
-      {/* Icon with gradient background */}
-      <div
-        className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 shadow-lg`}
-        aria-hidden="true"
-      >
-        <feature.icon className="h-7 w-7 text-white" />
+      {/* Feature image */}
+      <div className="relative h-40 -mx-6 -mt-6 mb-5 overflow-hidden">
+        <ImageWithFallback
+          src={imageUrl}
+          alt={feature.title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
+        
+        {/* Icon overlay */}
+        <div
+          className={`absolute bottom-4 left-4 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center shadow-lg`}
+          aria-hidden="true"
+        >
+          <feature.icon className="h-6 w-6 text-white" />
+        </div>
       </div>
       
       <h3 

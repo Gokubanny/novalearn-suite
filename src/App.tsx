@@ -7,6 +7,9 @@ import { lazy, Suspense } from "react";
 
 // Lazy load pages for better performance
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading fallback with accessibility
@@ -51,11 +54,11 @@ const App = () => (
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            {/* Public Pages - To be added */}
-            <Route path="/features" element={<LandingPage />} />
-            <Route path="/pricing" element={<LandingPage />} />
+            {/* Public Pages */}
+            <Route path="/features" element={<FeaturesPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/contact" element={<ContactPage />} />
             <Route path="/blog" element={<LandingPage />} />
-            <Route path="/contact" element={<LandingPage />} />
             
             {/* Auth Pages - To be added */}
             <Route path="/login/school-admin" element={<LandingPage />} />
