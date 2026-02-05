@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Sparkles, Shield, Clock, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FadeIn, ScaleIn } from "@/components/motion";
+import { images } from "@/lib/images";
 
 const benefits = [
   { icon: Clock, text: "14-day free trial" },
@@ -15,8 +16,19 @@ export function CTASection() {
       className="py-20 lg:py-32 relative overflow-hidden"
       aria-labelledby="cta-heading"
     >
+      {/* Background Image with gradient overlay */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `url(${images.cta.celebration})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-background/90" aria-hidden="true" />
+      
       {/* Background Pattern */}
-      <div className="absolute inset-0 bg-primary/5" aria-hidden="true" />
       <div className="absolute inset-0 bg-hero-pattern opacity-20" aria-hidden="true" />
       <div className="absolute inset-0 mesh-gradient opacity-50" aria-hidden="true" />
 

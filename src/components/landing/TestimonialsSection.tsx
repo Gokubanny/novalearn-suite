@@ -2,6 +2,8 @@ import { Quote, Star } from "lucide-react";
 import { FadeIn, StaggerContainer, staggerItemVariants, HoverCard } from "@/components/motion";
 import { motion } from "framer-motion";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { AvatarImage } from "@/components/ui/avatar-image";
+import { images } from "@/lib/images";
 
 const testimonials = [
   {
@@ -11,6 +13,7 @@ const testimonials = [
     role: "Vice Chancellor",
     institution: "Federal University of Technology",
     avatar: "AJ",
+    image: images.testimonials.person1,
     rating: 5,
   },
   {
@@ -20,6 +23,7 @@ const testimonials = [
     role: "Dean of Studies",
     institution: "Lagos State University",
     avatar: "NO",
+    image: images.testimonials.person2,
     rating: 5,
   },
   {
@@ -29,6 +33,7 @@ const testimonials = [
     role: "IT Director",
     institution: "Covenant University",
     avatar: "EC",
+    image: images.testimonials.person3,
     rating: 5,
   },
   {
@@ -38,6 +43,7 @@ const testimonials = [
     role: "Registrar",
     institution: "Ahmadu Bello University",
     avatar: "FI",
+    image: images.testimonials.person4,
     rating: 5,
   },
 ];
@@ -88,12 +94,12 @@ function TestimonialCard({
 
       {/* Author info */}
       <footer className="flex items-center gap-4">
-        <div 
-          className="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center text-primary-foreground font-semibold shadow-lg"
-          aria-hidden="true"
-        >
-          {testimonial.avatar}
-        </div>
+        <AvatarImage
+          src={testimonial.image}
+          alt={testimonial.author}
+          fallbackInitials={testimonial.avatar}
+          size="md"
+        />
         <div>
           <cite 
             id={`testimonial-author-${index}`}
@@ -120,6 +126,17 @@ export function TestimonialsSection() {
     >
       {/* Background decoration */}
       <div className="absolute inset-0 mesh-gradient opacity-30" aria-hidden="true" />
+      
+      {/* Background campus image with overlay */}
+      <div 
+        className="absolute inset-0 opacity-5"
+        style={{
+          backgroundImage: `url(${images.hero.campus})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+        aria-hidden="true"
+      />
       
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Section Header */}
