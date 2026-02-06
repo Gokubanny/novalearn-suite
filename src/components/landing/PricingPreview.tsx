@@ -14,8 +14,8 @@ interface PlanFeature {
 
 interface Plan {
   name: string;
-  price: string;
-  period: string;
+  monthlyPrice: string;
+  yearlyPrice: string;
   description: string;
   icon: LucideIcon;
   features: PlanFeature[];
@@ -27,8 +27,8 @@ interface Plan {
 const plans: Plan[] = [
   {
     name: "Basic",
-    price: "500,000",
-    period: "annually",
+    monthlyPrice: "50,000",
+    yearlyPrice: "500,000",
     description: "Perfect for small institutions getting started",
     icon: Building2,
     gradient: "from-slate-500 to-slate-600",
@@ -49,8 +49,8 @@ const plans: Plan[] = [
   },
   {
     name: "Pro",
-    price: "800,000",
-    period: "annually",
+    monthlyPrice: "80,000",
+    yearlyPrice: "800,000",
     description: "For growing institutions with advanced needs",
     icon: Sparkles,
     gradient: "from-primary to-blue-600",
@@ -71,8 +71,8 @@ const plans: Plan[] = [
   },
   {
     name: "Enterprise",
-    price: "1,200,000",
-    period: "annually",
+    monthlyPrice: "120,000",
+    yearlyPrice: "1,200,000",
     description: "For large institutions requiring full capabilities",
     icon: Crown,
     gradient: "from-amber-500 to-orange-500",
@@ -144,9 +144,10 @@ function PricingCard({
       <div className="text-center mb-8">
         <div className="flex items-baseline justify-center gap-1">
           <span className="text-2xl font-medium text-muted-foreground">₦</span>
-          <span className="text-5xl font-bold">{plan.price}</span>
+          <span className="text-5xl font-bold">{plan.yearlyPrice}</span>
         </div>
-        <span className="text-muted-foreground text-sm">per {plan.period}</span>
+        <span className="text-muted-foreground text-sm">per year</span>
+        <p className="text-xs text-muted-foreground mt-1">or ₦{plan.monthlyPrice}/month</p>
       </div>
 
       {/* Features list */}

@@ -123,24 +123,6 @@ const roleFeatures: Record<string, { title: string; description: string; feature
       },
     ],
   },
-  superadmins: {
-    title: "For Super Admins",
-    description: "Multi-institutional management and platform oversight",
-    features: [
-      {
-        icon: Settings,
-        title: "Platform Management",
-        description: "Manage multiple schools, configure system-wide settings.",
-        image: images.technology.coding,
-      },
-      {
-        icon: CreditCard,
-        title: "Revenue Analytics",
-        description: "Track subscription revenues, usage metrics, and billing across institutions.",
-        image: images.technology.dashboard,
-      },
-    ],
-  },
 };
 
 function FeatureCard({ feature, index }: { feature: RoleFeature; index: number }) {
@@ -223,7 +205,7 @@ export default function FeaturesPage() {
                 </FadeIn>
                 <FadeIn delay={0.2}>
                   <p className="text-lg text-muted-foreground mb-8">
-                    From students to super admins, NovaLearn Suite provides tailored 
+                    From students to administrators, NovaLearn Suite provides tailored 
                     features that enhance productivity and learning outcomes.
                   </p>
                 </FadeIn>

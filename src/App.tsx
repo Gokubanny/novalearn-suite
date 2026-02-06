@@ -10,6 +10,7 @@ const LandingPage = lazy(() => import("./pages/LandingPage"));
 const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
+const BlogPage = lazy(() => import("./pages/BlogPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Loading fallback with accessibility
@@ -58,7 +59,7 @@ const App = () => (
             <Route path="/features" element={<FeaturesPage />} />
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/contact" element={<ContactPage />} />
-            <Route path="/blog" element={<LandingPage />} />
+            <Route path="/blog" element={<BlogPage />} />
             
             {/* Auth Pages - To be added */}
             <Route path="/login/school-admin" element={<LandingPage />} />
