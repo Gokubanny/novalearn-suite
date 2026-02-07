@@ -19,9 +19,10 @@ const navLinks = [
 ];
 
 const loginOptions = [
-  { name: "School Admin", href: "/login/school-admin" },
-  { name: "Lecturer", href: "/login/lecturer" },
   { name: "Student", href: "/login/student" },
+  { name: "Lecturer", href: "/login/lecturer" },
+  { name: "Admin", href: "/login/admin" },
+  { name: "Super Admin", href: "/login/super-admin" },
 ];
 
 export function Navbar() {

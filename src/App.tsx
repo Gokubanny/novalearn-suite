@@ -20,6 +20,13 @@ const LecturerLoginPage = lazy(() => import("./pages/auth/LecturerLoginPage"));
 const AdminLoginPage = lazy(() => import("./pages/auth/AdminLoginPage"));
 const SuperAdminLoginPage = lazy(() => import("./pages/auth/SuperAdminLoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
+
+// Dashboard pages
+const StudentDashboard = lazy(() => import("./pages/dashboard/StudentDashboard"));
+const LecturerDashboard = lazy(() => import("./pages/dashboard/LecturerDashboard"));
+const AdminDashboard = lazy(() => import("./pages/dashboard/AdminDashboard"));
+const SuperAdminDashboard = lazy(() => import("./pages/dashboard/SuperAdminDashboard"));
 
 // Loading fallback with accessibility
 function PageLoader() {
@@ -76,6 +83,13 @@ const App = () => (
               <Route path="/login/admin" element={<AdminLoginPage />} />
               <Route path="/login/super-admin" element={<SuperAdminLoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              
+              {/* Dashboard Pages */}
+              <Route path="/dashboard/student/*" element={<StudentDashboard />} />
+              <Route path="/dashboard/lecturer/*" element={<LecturerDashboard />} />
+              <Route path="/dashboard/admin/*" element={<AdminDashboard />} />
+              <Route path="/dashboard/super-admin/*" element={<SuperAdminDashboard />} />
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
