@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 // Lazy load pages for better performance
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -15,10 +16,7 @@ const BlogPage = lazy(() => import("./pages/BlogPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Auth pages
-const StudentLoginPage = lazy(() => import("./pages/auth/StudentLoginPage"));
-const LecturerLoginPage = lazy(() => import("./pages/auth/LecturerLoginPage"));
-const AdminLoginPage = lazy(() => import("./pages/auth/AdminLoginPage"));
-const SuperAdminLoginPage = lazy(() => import("./pages/auth/SuperAdminLoginPage"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
 const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 
@@ -27,6 +25,20 @@ const StudentDashboard = lazy(() => import("./pages/dashboard/StudentDashboard")
 const LecturerDashboard = lazy(() => import("./pages/dashboard/LecturerDashboard"));
 const AdminDashboard = lazy(() => import("./pages/dashboard/AdminDashboard"));
 const SuperAdminDashboard = lazy(() => import("./pages/dashboard/SuperAdminDashboard"));
+
+// Student sub-pages
+const StudentCoursesPage = lazy(() => import("./pages/dashboard/student/CoursesPage"));
+const StudentAssignmentsPage = lazy(() => import("./pages/dashboard/student/AssignmentsPage"));
+
+// Lecturer sub-pages
+const LecturerCoursesPage = lazy(() => import("./pages/dashboard/lecturer/CoursesPage"));
+const LecturerAssignmentsPage = lazy(() => import("./pages/dashboard/lecturer/AssignmentsPage"));
+
+// Admin sub-pages
+const AdminUsersPage = lazy(() => import("./pages/dashboard/admin/UsersPage"));
+
+// Super Admin sub-pages
+const SuperAdminInstitutionsPage = lazy(() => import("./pages/dashboard/super-admin/InstitutionsPage"));
 
 // Loading fallback with accessibility
 function PageLoader() {
@@ -77,19 +89,68 @@ const App = () => (
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/blog" element={<BlogPage />} />
               
-              {/* Auth Pages */}
-              <Route path="/login/student" element={<StudentLoginPage />} />
-              <Route path="/login/lecturer" element={<LecturerLoginPage />} />
-              <Route path="/login/admin" element={<AdminLoginPage />} />
-              <Route path="/login/super-admin" element={<SuperAdminLoginPage />} />
+              {/* Auth Pages - Unified Login */}
+              <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               
-              {/* Dashboard Pages */}
-              <Route path="/dashboard/student/*" element={<StudentDashboard />} />
-              <Route path="/dashboard/lecturer/*" element={<LecturerDashboard />} />
-              <Route path="/dashboard/admin/*" element={<AdminDashboard />} />
-              <Route path="/dashboard/super-admin/*" element={<SuperAdminDashboard />} />
+              {/* Protected Student Dashboard Routes */}
+              <Route path="/dashboard/student" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/student/courses" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentCoursesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/student/assignments" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentAssignmentsPage />
+                </ProtectedRoute>
+              } />
+              
+              {/* Protected Lecturer Dashboard Routes */}
+              <Route path="/dashboard/lecturer" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/courses" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerCoursesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/assignments" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerAssignmentsPage />
+                </ProtectedRoute>
+              } />
+              
+              {/* Protected Admin Dashboard Routes */}
+              <Route path="/dashboard/admin" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/users" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminUsersPage />
+                </ProtectedRoute>
+              } />
+              
+              {/* Protected Super Admin Dashboard Routes */}
+              <Route path="/dashboard/super-admin" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/institutions" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminInstitutionsPage />
+                </ProtectedRoute>
+              } />
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

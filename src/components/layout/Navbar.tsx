@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Sun, Moon, ChevronDown, Eye } from "lucide-react";
+import { Menu, X, Sun, Moon, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -18,17 +18,11 @@ const navLinks = [
   { name: "Contact", href: "/contact" },
 ];
 
-const loginOptions = [
-  { name: "Student", href: "/login/student" },
-  { name: "Lecturer", href: "/login/lecturer" },
-  { name: "Admin", href: "/login/admin" },
-  { name: "Super Admin", href: "/login/super-admin" },
-];
+// Removed login options - now using unified login page
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLoginDropdownOpen, setIsLoginDropdownOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [highContrast, setHighContrast] = useState(false);
   const location = useLocation();
@@ -91,7 +85,7 @@ export function Navbar() {
           <Link 
             to="/" 
             className="flex items-center gap-2 focus-ring rounded-lg"
-            aria-label="NovaLearn Suite - Home"
+            aria-label="NexfordEdu - Home"
           >
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -102,7 +96,7 @@ export function Navbar() {
                 <span className="text-primary-foreground font-bold text-xl">N</span>
               </div>
               <span className="font-bold text-xl text-foreground hidden sm:block">
-                NovaLearn Suite
+                NexfordEdu
               </span>
             </motion.div>
           </Link>
@@ -188,46 +182,10 @@ export function Navbar() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Login Dropdown */}
-            <div className="relative">
-              <Button
-                variant="outline"
-                onClick={() => setIsLoginDropdownOpen(!isLoginDropdownOpen)}
-                onBlur={() => setTimeout(() => setIsLoginDropdownOpen(false), 150)}
-                className="flex items-center gap-2"
-                aria-expanded={isLoginDropdownOpen}
-                aria-haspopup="true"
-              >
-                Login
-                <ChevronDown className={cn(
-                  "h-4 w-4 transition-transform duration-200",
-                  isLoginDropdownOpen && "rotate-180"
-                )} aria-hidden="true" />
-              </Button>
-              <AnimatePresence>
-                {isLoginDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-xl shadow-lg overflow-hidden"
-                    role="menu"
-                  >
-                    {loginOptions.map((option) => (
-                      <Link
-                        key={option.name}
-                        to={option.href}
-                        role="menuitem"
-                        className="block px-4 py-3 text-sm hover:bg-accent transition-colors focus-ring"
-                      >
-                        {option.name}
-                      </Link>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* Login Button */}
+            <Button asChild variant="outline">
+              <Link to="/login">Login</Link>
+            </Button>
 
             <Button asChild className="btn-glow">
               <Link to="/register">Get Started</Link>
@@ -310,26 +268,20 @@ export function Navbar() {
                 </motion.div>
               ))}
               <div className="pt-4 border-t border-border space-y-2">
-                <p className="px-4 text-sm font-medium text-muted-foreground" id="login-as-label">
-                  Login as:
-                </p>
-                {loginOptions.map((option, index) => (
-                  <motion.div
-                    key={option.name}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (navLinks.length + index) * 0.05 }}
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: navLinks.length * 0.05 }}
+                >
+                  <Link
+                    to="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    role="menuitem"
+                    className="block px-4 py-3 rounded-lg text-base text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring"
                   >
-                    <Link
-                      to={option.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      role="menuitem"
-                      className="block px-4 py-3 rounded-lg text-base text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring"
-                    >
-                      {option.name}
-                    </Link>
-                  </motion.div>
-                ))}
+                    Login
+                  </Link>
+                </motion.div>
               </div>
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
