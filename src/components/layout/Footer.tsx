@@ -60,7 +60,7 @@ export function Footer() {
                 viewport={{ once: true }}
                 className="text-2xl lg:text-3xl font-bold mb-3"
               >
-              Stay Updated with NovaLearn Suite
+              Stay Updated with NexfordEdu
             </motion.h3>
               <p className="text-muted-foreground">
                 Get the latest news, updates, and educational insights delivered to your inbox.
@@ -95,7 +95,7 @@ export function Footer() {
               <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-xl">N</span>
               </div>
-              <span className="font-bold text-xl">NovaLearn Suite</span>
+              <span className="font-bold text-xl">NexfordEdu</span>
             </Link>
             <p className="text-muted-foreground mb-6 max-w-sm">
               Empowering educational institutions with AI-powered tools, biometric attendance, 
@@ -103,11 +103,11 @@ export function Footer() {
             </p>
             <div className="space-y-3">
               <a
-                href="mailto:info@novalearn.ng"
+                href="mailto:info@nexfordedu.ng"
                 className="flex items-center gap-3 text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Mail className="h-5 w-5" />
-                info@novalearn.ng
+                info@nexfordedu.ng
               </a>
               <a
                 href="tel:+2341234567890"
@@ -195,7 +195,7 @@ export function Footer() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} NovaLearn Suite. All rights reserved.
+              © {new Date().getFullYear()} NexfordEdu. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               {socialLinks.map((social) => (

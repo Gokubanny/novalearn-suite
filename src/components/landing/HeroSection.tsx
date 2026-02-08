@@ -61,7 +61,7 @@ export function HeroSection() {
                 <span className="w-2 h-2 rounded-full bg-success animate-pulse" aria-hidden="true" />
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
                 <span className="text-sm font-medium text-foreground">
-                  NovaLearn Suite — Trusted by 500+ Nigerian Schools
+                  NexfordEdu — Trusted by 500+ Nigerian Schools
                 </span>
               </div>
             </FadeIn>
