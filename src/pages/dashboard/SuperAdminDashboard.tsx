@@ -18,11 +18,13 @@ import { Progress } from '@/components/ui/progress';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/super-admin', icon: Home },
-  { name: 'Institutions', href: '/dashboard/super-admin/institutions', icon: Building2 },
-  { name: 'All Users', href: '/dashboard/super-admin/users', icon: Users },
-  { name: 'Access Control', href: '/dashboard/super-admin/access', icon: Shield },
-  { name: 'Analytics', href: '/dashboard/super-admin/analytics', icon: BarChart3 },
-  { name: 'System', href: '/dashboard/super-admin/system', icon: Settings },
+  { name: 'Schools', href: '/dashboard/super-admin/institutions', icon: Building2 },
+  { name: 'Revenue', href: '/dashboard/super-admin/revenue', icon: BarChart3 },
+  { name: 'Users', href: '/dashboard/super-admin/users', icon: Users },
+  { name: 'Audit Log', href: '/dashboard/super-admin/audit', icon: Shield },
+  { name: 'Blog', href: '/dashboard/super-admin/blog', icon: Settings },
+  { name: 'Pricing', href: '/dashboard/super-admin/pricing', icon: Settings },
+  { name: 'Settings', href: '/dashboard/super-admin/settings', icon: Settings },
 ];
 
 const institutions = [

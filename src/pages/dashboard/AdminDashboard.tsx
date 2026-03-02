@@ -16,10 +16,11 @@ import { Badge } from '@/components/ui/badge';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: Home },
-  { name: 'Users', href: '/dashboard/admin/users', icon: Users },
-  { name: 'Courses', href: '/dashboard/admin/courses', icon: BookOpen },
+  { name: 'Students', href: '/dashboard/admin/students', icon: Users },
+  { name: 'Lecturers', href: '/dashboard/admin/lecturers', icon: Users },
   { name: 'Departments', href: '/dashboard/admin/departments', icon: Building2 },
-  { name: 'Reports', href: '/dashboard/admin/reports', icon: BarChart3 },
+  { name: 'Subscription', href: '/dashboard/admin/subscription', icon: Building2 },
+  { name: 'Attendance', href: '/dashboard/admin/attendance', icon: BarChart3 },
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ];
 
