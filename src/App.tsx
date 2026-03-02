@@ -36,9 +36,21 @@ const LecturerAssignmentsPage = lazy(() => import("./pages/dashboard/lecturer/As
 
 // Admin sub-pages
 const AdminUsersPage = lazy(() => import("./pages/dashboard/admin/UsersPage"));
+const AdminStudentManagement = lazy(() => import("./pages/dashboard/admin/StudentManagementPage"));
+const AdminLecturerManagement = lazy(() => import("./pages/dashboard/admin/LecturerManagementPage"));
+const AdminDepartmentManagement = lazy(() => import("./pages/dashboard/admin/DepartmentManagementPage"));
+const AdminSubscription = lazy(() => import("./pages/dashboard/admin/SubscriptionPage"));
+const AdminAttendanceAnalytics = lazy(() => import("./pages/dashboard/admin/AttendanceAnalyticsPage"));
+const AdminSettings = lazy(() => import("./pages/dashboard/admin/AdminSettingsPage"));
 
 // Super Admin sub-pages
 const SuperAdminInstitutionsPage = lazy(() => import("./pages/dashboard/super-admin/InstitutionsPage"));
+const SuperAdminRevenue = lazy(() => import("./pages/dashboard/super-admin/RevenuePage"));
+const SuperAdminAllUsers = lazy(() => import("./pages/dashboard/super-admin/AllUsersPage"));
+const SuperAdminAuditLog = lazy(() => import("./pages/dashboard/super-admin/AuditLogPage"));
+const SuperAdminBlogManagement = lazy(() => import("./pages/dashboard/super-admin/BlogManagementPage"));
+const SuperAdminPricingManagement = lazy(() => import("./pages/dashboard/super-admin/PricingManagementPage"));
+const SuperAdminPlatformSettings = lazy(() => import("./pages/dashboard/super-admin/PlatformSettingsPage"));
 
 // Loading fallback with accessibility
 function PageLoader() {
@@ -139,6 +151,36 @@ const App = () => (
                   <AdminUsersPage />
                 </ProtectedRoute>
               } />
+              <Route path="/dashboard/admin/students" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminStudentManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/lecturers" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminLecturerManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/departments" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDepartmentManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/subscription" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminSubscription />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/attendance" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminAttendanceAnalytics />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/settings" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminSettings />
+                </ProtectedRoute>
+              } />
               
               {/* Protected Super Admin Dashboard Routes */}
               <Route path="/dashboard/super-admin" element={
@@ -149,6 +191,36 @@ const App = () => (
               <Route path="/dashboard/super-admin/institutions" element={
                 <ProtectedRoute allowedRoles={['super_admin']}>
                   <SuperAdminInstitutionsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/revenue" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminRevenue />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/users" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminAllUsers />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/audit" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminAuditLog />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/blog" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminBlogManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/pricing" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminPricingManagement />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/super-admin/settings" element={
+                <ProtectedRoute allowedRoles={['super_admin']}>
+                  <SuperAdminPlatformSettings />
                 </ProtectedRoute>
               } />
               
