@@ -29,10 +29,20 @@ const SuperAdminDashboard = lazy(() => import("./pages/dashboard/SuperAdminDashb
 // Student sub-pages
 const StudentCoursesPage = lazy(() => import("./pages/dashboard/student/CoursesPage"));
 const StudentAssignmentsPage = lazy(() => import("./pages/dashboard/student/AssignmentsPage"));
+const StudentAttendancePage = lazy(() => import("./pages/dashboard/student/AttendancePage"));
+const StudentResultsPage = lazy(() => import("./pages/dashboard/student/ResultsPage"));
+const StudentAIAssistantPage = lazy(() => import("./pages/dashboard/student/AIAssistantPage"));
+const StudentSchedulePage = lazy(() => import("./pages/dashboard/student/SchedulePage"));
+const StudentProfilePage = lazy(() => import("./pages/dashboard/student/ProfilePage"));
 
 // Lecturer sub-pages
 const LecturerCoursesPage = lazy(() => import("./pages/dashboard/lecturer/CoursesPage"));
 const LecturerAssignmentsPage = lazy(() => import("./pages/dashboard/lecturer/AssignmentsPage"));
+const LecturerAttendancePage = lazy(() => import("./pages/dashboard/lecturer/AttendancePage"));
+const LecturerResultsPage = lazy(() => import("./pages/dashboard/lecturer/ResultsPage"));
+const LecturerStudentPerformancePage = lazy(() => import("./pages/dashboard/lecturer/StudentPerformancePage"));
+const LecturerSchedulePage = lazy(() => import("./pages/dashboard/lecturer/SchedulePage"));
+const LecturerProfilePage = lazy(() => import("./pages/dashboard/lecturer/ProfilePage"));
 
 // Admin sub-pages
 const AdminUsersPage = lazy(() => import("./pages/dashboard/admin/UsersPage"));
@@ -122,6 +132,31 @@ const App = () => (
                   <StudentAssignmentsPage />
                 </ProtectedRoute>
               } />
+              <Route path="/dashboard/student/attendance" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentAttendancePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/student/results" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentResultsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/student/ai-assistant" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentAIAssistantPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/student/schedule" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentSchedulePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/student/profile" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentProfilePage />
+                </ProtectedRoute>
+              } />
               
               {/* Protected Lecturer Dashboard Routes */}
               <Route path="/dashboard/lecturer" element={
@@ -137,6 +172,31 @@ const App = () => (
               <Route path="/dashboard/lecturer/assignments" element={
                 <ProtectedRoute allowedRoles={['lecturer']}>
                   <LecturerAssignmentsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/attendance" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerAttendancePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/results" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerResultsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/students" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerStudentPerformancePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/schedule" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerSchedulePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/lecturer/profile" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <LecturerProfilePage />
                 </ProtectedRoute>
               } />
               

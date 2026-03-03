@@ -4,9 +4,11 @@ import {
   Calendar, 
   FileText, 
   Trophy, 
-  MessageSquare,
+  CheckCircle,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Brain,
+  User
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,10 +18,12 @@ import { Progress } from '@/components/ui/progress';
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/student', icon: Home },
   { name: 'My Courses', href: '/dashboard/student/courses', icon: BookOpen },
+  { name: 'Attendance', href: '/dashboard/student/attendance', icon: CheckCircle },
   { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
   { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
-  { name: 'Grades', href: '/dashboard/student/grades', icon: Trophy },
-  { name: 'Messages', href: '/dashboard/student/messages', icon: MessageSquare },
+  { name: 'Results', href: '/dashboard/student/results', icon: Trophy },
+  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain },
+  { name: 'Profile', href: '/dashboard/student/profile', icon: User },
 ];
 
 const courses = [
@@ -159,8 +163,8 @@ export default function StudentDashboard() {
                 <span className="text-xs">View Schedule</span>
               </Button>
               <Button variant="outline" className="h-auto py-4 flex flex-col gap-2">
-                <MessageSquare className="h-5 w-5" />
-                <span className="text-xs">Ask Instructor</span>
+                <Brain className="h-5 w-5" />
+                <span className="text-xs">AI Assistant</span>
               </Button>
               <Button variant="outline" className="h-auto py-4 flex flex-col gap-2">
                 <TrendingUp className="h-5 w-5" />
