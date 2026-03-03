@@ -4,9 +4,10 @@ import {
   Users, 
   FileText, 
   BarChart3, 
-  MessageSquare,
   Calendar,
-  PlusCircle
+  CheckCircle,
+  PlusCircle,
+  User
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,10 +17,12 @@ import { Badge } from '@/components/ui/badge';
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
   { name: 'My Courses', href: '/dashboard/lecturer/courses', icon: BookOpen },
-  { name: 'Students', href: '/dashboard/lecturer/students', icon: Users },
+  { name: 'Attendance', href: '/dashboard/lecturer/attendance', icon: CheckCircle },
   { name: 'Assignments', href: '/dashboard/lecturer/assignments', icon: FileText },
-  { name: 'Analytics', href: '/dashboard/lecturer/analytics', icon: BarChart3 },
-  { name: 'Messages', href: '/dashboard/lecturer/messages', icon: MessageSquare },
+  { name: 'Results', href: '/dashboard/lecturer/results', icon: BarChart3 },
+  { name: 'Students', href: '/dashboard/lecturer/students', icon: Users },
+  { name: 'Schedule', href: '/dashboard/lecturer/schedule', icon: Calendar },
+  { name: 'Profile', href: '/dashboard/lecturer/profile', icon: User },
 ];
 
 const myCourses = [
@@ -188,7 +191,7 @@ export default function LecturerDashboard() {
                 <span className="text-xs">View Analytics</span>
               </Button>
               <Button variant="outline" className="h-auto py-4 flex flex-col gap-2">
-                <MessageSquare className="h-5 w-5" />
+                <Calendar className="h-5 w-5" />
                 <span className="text-xs">Send Announcement</span>
               </Button>
             </div>
