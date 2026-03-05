@@ -53,6 +53,14 @@ const AdminSubscription = lazy(() => import("./pages/dashboard/admin/Subscriptio
 const AdminAttendanceAnalytics = lazy(() => import("./pages/dashboard/admin/AttendanceAnalyticsPage"));
 const AdminSettings = lazy(() => import("./pages/dashboard/admin/AdminSettingsPage"));
 
+// Admin extra pages
+const AdminMatricConfig = lazy(() => import("./pages/dashboard/admin/MatricConfigPage"));
+const AdminTimetable = lazy(() => import("./pages/dashboard/admin/TimetableManagementPage"));
+
+// AI Module pages
+const FacialRecognitionPage = lazy(() => import("./pages/dashboard/ai/FacialRecognitionPage"));
+const NotificationCentrePage = lazy(() => import("./pages/dashboard/ai/NotificationCentrePage"));
+
 // Super Admin sub-pages
 const SuperAdminInstitutionsPage = lazy(() => import("./pages/dashboard/super-admin/InstitutionsPage"));
 const SuperAdminRevenue = lazy(() => import("./pages/dashboard/super-admin/RevenuePage"));
@@ -239,6 +247,28 @@ const App = () => (
               <Route path="/dashboard/admin/settings" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminSettings />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/matric-config" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminMatricConfig />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/timetable" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminTimetable />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard/admin/notifications" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <NotificationCentrePage />
+                </ProtectedRoute>
+              } />
+
+              {/* AI Module Routes */}
+              <Route path="/dashboard/lecturer/facial-recognition" element={
+                <ProtectedRoute allowedRoles={['lecturer']}>
+                  <FacialRecognitionPage />
                 </ProtectedRoute>
               } />
               
