@@ -62,8 +62,7 @@ const roleOptions: { role: UserRole; label: string; icon: typeof GraduationCap; 
 export default function LoginPage() {
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
   const [showPassword, setShowPassword] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { login, loginWithGoogle, isLoading } = useAuth();
+  const { login, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -78,32 +77,20 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    const success = await login(data.email, data.password, selectedRole);
-    if (success) {
+    const result = await login(data.email, data.password);
+    if (result.success) {
       toast({
         title: 'Welcome back!',
-        description: `You have successfully logged in as ${currentRole.label}.`,
+        description: `You have successfully logged in.`,
       });
+      // Navigate based on user's actual role (from DB), not selected role
       navigate(currentRole.redirectPath);
     } else {
       toast({
         title: 'Login failed',
-        description: 'Invalid email or password. Please try again.',
+        description: result.error || 'Invalid email or password. Please try again.',
         variant: 'destructive',
       });
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setIsGoogleLoading(true);
-    const success = await loginWithGoogle(selectedRole);
-    setIsGoogleLoading(false);
-    if (success) {
-      toast({
-        title: 'Welcome!',
-        description: `You have successfully logged in with Google as ${currentRole.label}.`,
-      });
-      navigate(currentRole.redirectPath);
     }
   };
 
