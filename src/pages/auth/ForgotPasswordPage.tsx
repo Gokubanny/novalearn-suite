@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Mail, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -19,6 +20,7 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
+  const { resetPassword } = useAuth();
 
   const {
     register,
@@ -30,10 +32,11 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: ForgotPasswordFormData) => {
     setIsLoading(true);
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setSubmittedEmail(data.email);
-    setIsSubmitted(true);
+    const result = await resetPassword(data.email);
+    if (result.success) {
+      setSubmittedEmail(data.email);
+      setIsSubmitted(true);
+    }
     setIsLoading(false);
   };
 
