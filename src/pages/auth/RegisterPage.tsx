@@ -50,7 +50,7 @@ export default function RegisterPage() {
   });
 
   const onSubmit = async (data: RegisterFormData) => {
-    const success = await registerUser({
+    const result = await registerUser({
       email: data.email,
       password: data.password,
       firstName: data.firstName,
@@ -61,16 +61,16 @@ export default function RegisterPage() {
       institution: data.institution,
     });
 
-    if (success) {
+    if (result.success) {
       toast({
         title: 'Account created!',
-        description: 'Welcome to NexfordEdu. You can now access your dashboard.',
+        description: 'Please check your email to verify your account.',
       });
-      navigate(`/dashboard/${selectedRole.replace('_', '-')}`);
+      navigate('/login');
     } else {
       toast({
         title: 'Registration failed',
-        description: 'An account with this email already exists.',
+        description: result.error || 'An account with this email already exists.',
         variant: 'destructive',
       });
     }
