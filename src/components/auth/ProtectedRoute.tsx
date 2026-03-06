@@ -29,13 +29,10 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (!user) {
-    // Redirect to login with return path
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (!allowedRoles.includes(user.role)) {
-    // User is logged in but doesn't have the right role
-    // Redirect to their appropriate dashboard
     const dashboardPaths: Record<UserRole, string> = {
       student: '/dashboard/student',
       lecturer: '/dashboard/lecturer',
