@@ -128,6 +128,16 @@ const App = () => (
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/blog" element={<BlogPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/careers" element={<CareersPage />} />
+              <Route path="/demo" element={<DemoPage />} />
+              <Route path="/docs" element={<DocsPage />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="/api" element={<ApiPage />} />
+              <Route path="/community" element={<CommunityPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/cookies" element={<CookiesPage />} />
               
               {/* Auth Pages - Unified Login */}
               <Route path="/login" element={<LoginPage />} />

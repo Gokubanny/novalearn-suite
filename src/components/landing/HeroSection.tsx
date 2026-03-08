@@ -123,13 +123,15 @@ export function HeroSection() {
                   </Link>
                 </Button>
                 <Button
+                  asChild
                   variant="outline"
                   size="lg"
                   className="h-14 px-8 text-base group hover:bg-accent"
-                  aria-label="Watch product demo video"
                 >
-                  <Play className="mr-2 h-5 w-5 transition-transform group-hover:scale-110" aria-hidden="true" />
-                  Watch Demo
+                  <Link to="/features">
+                    Explore Features
+                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                  </Link>
                 </Button>
               </div>
             </FadeIn>
