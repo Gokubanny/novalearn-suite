@@ -137,6 +137,9 @@ export function DashboardLayout({ children, navItems, roleLabel, accentColor }: 
               const planOrder: Record<string, number> = { basic: 0, pro: 1, enterprise: 2 };
               const locked = item.requiredPlan ? planOrder[plan] < planOrder[item.requiredPlan] : false;
 
+              // Hide locked items entirely for students
+              if (locked && user?.role === 'student') return null;
+
               return (
                 <Link
                   key={item.name}
