@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
+import { CourseDiscussions } from '@/components/course/CourseDiscussions';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -36,6 +37,7 @@ export default function LecturerCoursesPage() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<LecturerCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [discussionCourse, setDiscussionCourse] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +84,19 @@ export default function LecturerCoursesPage() {
     setCourses(enriched);
     setLoading(false);
   };
+
+  if (discussionCourse) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={() => setDiscussionCourse(null)}>
+            ← Back to Courses
+          </Button>
+          <CourseDiscussions courseId={discussionCourse.id} courseName={discussionCourse.title} />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
@@ -151,6 +166,13 @@ export default function LecturerCoursesPage() {
                     <Button className="flex-1" variant="outline">
                       <Eye className="h-4 w-4 mr-2" />
                       View
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setDiscussionCourse({ id: course.id, title: course.title })}
+                    >
+                      <MessageSquare className="h-4 w-4" />
                     </Button>
                     <Button className="flex-1">
                       <Settings className="h-4 w-4 mr-2" />
