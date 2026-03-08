@@ -11,12 +11,16 @@ import {
   Hash,
   Calendar,
   CreditCard,
-  GraduationCap
+  GraduationCap,
+  AlertTriangle
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { useSubscription, getPlanLabel } from '@/hooks/useSubscription';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: Home },
@@ -45,6 +49,12 @@ const departments = [
 ];
 
 export default function AdminDashboard() {
+  const { plan, limits } = useSubscription();
+  const studentCount = 1150;
+  const lecturerCount = 37;
+  const studentPct = limits.maxStudents === Infinity ? 10 : Math.round((studentCount / limits.maxStudents) * 100);
+  const lecturerPct = limits.maxLecturers === Infinity ? 10 : Math.round((lecturerCount / limits.maxLecturers) * 100);
+
   return (
     <DashboardLayout 
       navItems={navItems} 
@@ -52,6 +62,42 @@ export default function AdminDashboard() {
       accentColor="hsl(262, 83%, 58%)"
     >
       <div className="space-y-6">
+        {/* Plan Badge */}
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-sm px-3 py-1">
+            {getPlanLabel(plan)} Plan
+          </Badge>
+          {(studentPct >= 80 || lecturerPct >= 80) && (
+            <Alert className="flex-1 py-2 border-yellow-500/50 bg-yellow-500/10">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-sm text-yellow-700 dark:text-yellow-400">
+                You're approaching your plan limits. Consider upgrading for more capacity.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        {/* Usage Bars */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Students</span>
+                <span className="font-medium">{studentCount.toLocaleString()} / {limits.maxStudents === Infinity ? '∞' : limits.maxStudents.toLocaleString()}</span>
+              </div>
+              <Progress value={studentPct} className="h-2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Lecturers</span>
+                <span className="font-medium">{lecturerCount} / {limits.maxLecturers === Infinity ? '∞' : limits.maxLecturers}</span>
+              </div>
+              <Progress value={lecturerPct} className="h-2" />
+            </CardContent>
+          </Card>
+        </div>
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
