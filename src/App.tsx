@@ -13,6 +13,16 @@ const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
 const PricingPage = lazy(() => import("./pages/PricingPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 const BlogPage = lazy(() => import("./pages/BlogPage"));
+const AboutPage = lazy(() => import("./pages/AboutPage"));
+const CareersPage = lazy(() => import("./pages/CareersPage"));
+const DemoPage = lazy(() => import("./pages/DemoPage"));
+const DocsPage = lazy(() => import("./pages/DocsPage"));
+const HelpPage = lazy(() => import("./pages/HelpPage"));
+const ApiPage = lazy(() => import("./pages/ApiPage"));
+const CommunityPage = lazy(() => import("./pages/CommunityPage"));
+const PrivacyPage = lazy(() => import("./pages/PrivacyPage"));
+const TermsPage = lazy(() => import("./pages/TermsPage"));
+const CookiesPage = lazy(() => import("./pages/CookiesPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Auth pages
@@ -118,6 +128,16 @@ const App = () => (
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/contact" element={<ContactPage />} />
               <Route path="/blog" element={<BlogPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/careers" element={<CareersPage />} />
+              <Route path="/demo" element={<DemoPage />} />
+              <Route path="/docs" element={<DocsPage />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="/api" element={<ApiPage />} />
+              <Route path="/community" element={<CommunityPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/cookies" element={<CookiesPage />} />
               
               {/* Auth Pages - Unified Login */}
               <Route path="/login" element={<LoginPage />} />
