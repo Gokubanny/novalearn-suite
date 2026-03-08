@@ -178,9 +178,9 @@ export default function LecturerCoursesPage() {
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
-                    <Button className="flex-1" variant="outline">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
+                    <Button className="flex-1" variant="outline" onClick={() => setMaterialsCourse({ id: course.id, title: course.title })}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Materials
                     </Button>
                     <Button
                       variant="outline"
