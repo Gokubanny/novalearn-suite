@@ -43,6 +43,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, navItems, roleLabel, accentColor }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { plan, canAccess } = useSubscription();
   const navigate = useNavigate();
   const location = useLocation();
 
