@@ -167,6 +167,13 @@ export default function LecturerCoursesPage() {
                       <Eye className="h-4 w-4 mr-2" />
                       View
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setDiscussionCourse({ id: course.id, title: course.title })}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </Button>
                     <Button className="flex-1">
                       <Settings className="h-4 w-4 mr-2" />
                       Manage
