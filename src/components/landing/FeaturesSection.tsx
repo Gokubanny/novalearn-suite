@@ -124,52 +124,56 @@ function FeatureCard({
   const reducedMotion = useReducedMotion();
   const imageUrl = featureImages[feature.title];
 
-  const CardContent = (
-    <motion.article
-      variants={staggerItemVariants}
-      className="group feature-card overflow-hidden"
-      aria-labelledby={`feature-title-${index}`}
-    >
-      {/* Feature image */}
-      <div className="relative h-40 -mx-6 -mt-6 mb-5 overflow-hidden">
-        <ImageWithFallback
-          src={imageUrl}
-          alt={feature.title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
-        
-        {/* Icon overlay */}
-        <div
-          className={`absolute bottom-4 left-4 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center shadow-lg`}
-          aria-hidden="true"
-        >
-          <feature.icon className="h-6 w-6 text-white" />
-        </div>
-      </div>
-      
-      <h3 
-        id={`feature-title-${index}`}
-        className="text-lg font-semibold mb-3 group-hover:text-primary transition-colors"
-      >
-        {feature.title}
-      </h3>
-      <p className="text-muted-foreground text-sm leading-relaxed">
-        {feature.description}
-      </p>
+  const slug = feature.title.toLowerCase().replace(/\s+/g, '-');
 
-      {/* Hover indicator */}
-      <div className="mt-4 flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-        Learn more
-        <motion.span 
-          className="ml-1"
-          animate={reducedMotion ? {} : { x: [0, 4, 0] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
+  const CardContent = (
+    <Link to={`/features#${slug}`} className="block">
+      <motion.article
+        variants={staggerItemVariants}
+        className="group feature-card overflow-hidden"
+        aria-labelledby={`feature-title-${index}`}
+      >
+        {/* Feature image */}
+        <div className="relative h-40 -mx-6 -mt-6 mb-5 overflow-hidden">
+          <ImageWithFallback
+            src={imageUrl}
+            alt={feature.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
+          
+          {/* Icon overlay */}
+          <div
+            className={`absolute bottom-4 left-4 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center shadow-lg`}
+            aria-hidden="true"
+          >
+            <feature.icon className="h-6 w-6 text-white" />
+          </div>
+        </div>
+        
+        <h3 
+          id={`feature-title-${index}`}
+          className="text-lg font-semibold mb-3 group-hover:text-primary transition-colors"
         >
-          →
-        </motion.span>
-      </div>
-    </motion.article>
+          {feature.title}
+        </h3>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {feature.description}
+        </p>
+
+        {/* Hover indicator */}
+        <div className="mt-4 flex items-center text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+          Learn more
+          <motion.span 
+            className="ml-1"
+            animate={reducedMotion ? {} : { x: [0, 4, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+          >
+            →
+          </motion.span>
+        </div>
+      </motion.article>
+    </Link>
   );
 
   return reducedMotion ? CardContent : <HoverCard>{CardContent}</HoverCard>;
