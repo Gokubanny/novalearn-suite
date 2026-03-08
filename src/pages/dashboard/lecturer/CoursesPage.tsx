@@ -100,6 +100,19 @@ export default function LecturerCoursesPage() {
     );
   }
 
+  if (materialsCourse) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={() => setMaterialsCourse(null)}>
+            ← Back to Courses
+          </Button>
+          <CourseMaterials courseId={materialsCourse.id} courseName={materialsCourse.title} canUpload={true} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
       <div className="space-y-6">
