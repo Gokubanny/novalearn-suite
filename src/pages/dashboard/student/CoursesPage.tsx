@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CourseDiscussions } from '@/components/course/CourseDiscussions';
+import { CourseMaterials } from '@/components/course/CourseMaterials';
 import { useToast } from '@/hooks/use-toast';
 
 const navItems = [
