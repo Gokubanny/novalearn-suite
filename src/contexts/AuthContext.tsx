@@ -15,6 +15,7 @@ export interface UserProfile {
   avatar?: string;
   department?: string;
   institution?: string;
+  institutionId?: string;
   matricNumber?: string;
   staffId?: string;
   createdAt: string;
