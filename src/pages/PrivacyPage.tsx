@@ -1,0 +1,44 @@
+import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
+import { FadeIn } from "@/components/motion";
+
+const sections = [
+  { title: "Information We Collect", content: "We collect information you provide directly, such as your name, email address, institution details, and academic records. We also collect usage data including login times, feature usage patterns, and device information to improve our services." },
+  { title: "How We Use Your Information", content: "Your information is used to provide and maintain the NexfordEdu platform, process attendance records, manage academic data, send notifications, and improve our AI-powered features. We never sell your personal data to third parties." },
+  { title: "Biometric Data", content: "For institutions using our facial recognition attendance system, biometric data is processed in real-time and stored securely using industry-standard encryption. Biometric templates are stored separately from personal identifiers and can be deleted upon request." },
+  { title: "Data Storage & Security", content: "All data is stored on secure, encrypted servers. We implement role-based access controls, data isolation between institutions, and regular security audits. Data is backed up daily and retained according to your institution's policies." },
+  { title: "Data Sharing", content: "We share data only with your institution's authorized administrators and as required by Nigerian law. We do not share student or staff data with third parties for marketing purposes." },
+  { title: "Your Rights", content: "You have the right to access, correct, or delete your personal data. You can request a copy of your data or ask for account deletion by contacting your institution's administrator or our support team." },
+  { title: "Cookies", content: "We use essential cookies for authentication and session management. Analytics cookies help us understand how our platform is used. You can manage cookie preferences through your browser settings." },
+  { title: "Changes to This Policy", content: "We may update this privacy policy from time to time. We will notify affected users and institutions of any material changes via email and in-platform notifications." },
+  { title: "Contact Us", content: "For privacy-related inquiries, contact us at privacy@nexfordedu.ng or visit our Contact page." },
+];
+
+export default function PrivacyPage() {
+  return (
+    <div className="min-h-screen">
+      <Navbar />
+      <main id="main-content" tabIndex={-1}>
+        <section className="pt-32 pb-20">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+            <FadeIn>
+              <h1 className="text-4xl font-bold mb-4">Privacy Policy</h1>
+              <p className="text-muted-foreground mb-12">Last updated: March 2026</p>
+            </FadeIn>
+            <div className="space-y-8">
+              {sections.map((s, i) => (
+                <FadeIn key={s.title} delay={i * 0.05}>
+                  <div>
+                    <h2 className="text-xl font-semibold mb-3">{s.title}</h2>
+                    <p className="text-muted-foreground leading-relaxed">{s.content}</p>
+                  </div>
+                </FadeIn>
+              ))}
+            </div>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
+  );
+}
