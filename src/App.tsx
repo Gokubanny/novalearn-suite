@@ -138,9 +138,9 @@ const App = () => (
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/cookies" element={<CookiesPage />} />
               
-              {/* Auth Pages - Unified Login */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+              {/* Auth Pages - Unified with cinematic transitions */}
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/register" element={<AuthPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               
               {/* Protected Student Dashboard Routes */}
