@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { useSubscription } from '@/hooks/useSubscription';
+import { UpgradePrompt } from '@/components/dashboard/UpgradePrompt';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/student', icon: Home },
@@ -15,7 +17,7 @@ const navItems = [
   { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
   { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
   { name: 'Results', href: '/dashboard/student/results', icon: Trophy },
-  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain },
+  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain, requiredPlan: 'pro' as const },
   { name: 'Profile', href: '/dashboard/student/profile', icon: User },
 ];
 
