@@ -1,12 +1,12 @@
-import { Home, BookOpen, Users, FileText, BarChart3, Calendar, CheckCircle, Clock, MapPin, Video, Plus, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Home, BookOpen, Users, FileText, BarChart3, Calendar, CheckCircle, Clock, MapPin, Loader2, User } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { EmptyState } from '@/components/dashboard/EmptyState';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -19,176 +19,164 @@ const navItems = [
   { name: 'Profile', href: '/dashboard/lecturer/profile', icon: User },
 ];
 
-const todayClasses = [
-  { time: '8:00 - 9:30', course: 'CS101 - Intro to CS', type: 'Lecture', location: 'Hall A', mode: 'physical', students: 45 },
-  { time: '10:00 - 11:30', course: 'CS201 - Data Structures', type: 'Lab', location: 'Computer Lab 2', mode: 'physical', students: 38 },
-  { time: '1:00 - 2:30', course: 'WEB101 - Web Dev', type: 'Lecture', location: 'Zoom Meeting', mode: 'online', students: 52 },
-];
+const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const weekSchedule = [
-  { day: 'Monday', classes: [
-    { time: '8:00-9:30', course: 'CS101', mode: 'physical', students: 45 },
-    { time: '1:00-2:30', course: 'WEB101', mode: 'online', students: 52 },
-  ]},
-  { day: 'Tuesday', classes: [
-    { time: '10:00-11:30', course: 'CS201', mode: 'physical', students: 38 },
-  ]},
-  { day: 'Wednesday', classes: [
-    { time: '8:00-9:30', course: 'CS101', mode: 'physical', students: 45 },
-    { time: '10:00-11:30', course: 'CS201', mode: 'physical', students: 38 },
-    { time: '3:00-4:30', course: 'WEB101', mode: 'online', students: 52 },
-  ]},
-  { day: 'Thursday', classes: [
-    { time: '10:00-11:30', course: 'CS201', mode: 'physical', students: 38 },
-    { time: '1:00-2:30', course: 'CS101', mode: 'online', students: 45 },
-  ]},
-  { day: 'Friday', classes: [
-    { time: '8:00-9:30', course: 'WEB101', mode: 'physical', students: 52 },
-  ]},
-];
+interface TimetableEntry {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  venue: string | null;
+  course: { code: string; title: string } | null;
+  studentCount: number;
+}
 
 export default function LecturerSchedulePage() {
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<TimetableEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchSchedule();
+  }, [user]);
+
+  async function fetchSchedule() {
+    setLoading(true);
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user!.id)
+        .single();
+      if (!profile) { setLoading(false); return; }
+
+      // Get lecturer's courses
+      const { data: courses } = await supabase
+        .from('courses')
+        .select('id, code, title')
+        .eq('lecturer_id', profile.id)
+        .eq('is_active', true);
+
+      const courseIds = courses?.map(c => c.id) || [];
+      if (courseIds.length === 0) { setEntries([]); setLoading(false); return; }
+
+      const courseMap = new Map(courses?.map(c => [c.id, { code: c.code, title: c.title }]));
+
+      // Get timetable
+      const { data } = await supabase
+        .from('timetable')
+        .select('id, day_of_week, start_time, end_time, venue, course_id')
+        .in('course_id', courseIds)
+        .order('day_of_week')
+        .order('start_time');
+
+      // Get enrollment counts
+      const { data: enrollments } = await supabase
+        .from('enrollments')
+        .select('course_id')
+        .in('course_id', courseIds)
+        .eq('status', 'enrolled');
+
+      const countMap = new Map<string, number>();
+      enrollments?.forEach(e => countMap.set(e.course_id, (countMap.get(e.course_id) || 0) + 1));
+
+      setEntries((data || []).map(e => ({
+        ...e,
+        course: courseMap.get(e.course_id) || null,
+        studentCount: countMap.get(e.course_id) || 0,
+      })));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const today = new Date().getDay();
+  const todayEntries = entries.filter(e => e.day_of_week === today);
+  const weekGrouped = [1, 2, 3, 4, 5].map(day => ({
+    day: dayNames[day],
+    classes: entries.filter(e => e.day_of_week === day),
+  })).filter(d => d.classes.length > 0);
+
+  const formatTime = (t: string) => t.slice(0, 5);
+
   return (
     <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 70%, 45%)">
       <div className="space-y-6">
         <div className="text-sm text-muted-foreground">
           Dashboard / <span className="text-foreground font-medium">Schedule</span>
         </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Class Schedule</h1>
-            <p className="text-muted-foreground">Manage your teaching schedule and class sessions</p>
-          </div>
-          <Button><Plus className="h-4 w-4 mr-2" />Schedule Class</Button>
+        <div>
+          <h1 className="text-2xl font-bold">Class Schedule</h1>
+          <p className="text-muted-foreground">Your teaching schedule from the timetable</p>
         </div>
 
-        <Tabs defaultValue="today">
-          <TabsList>
-            <TabsTrigger value="today">Today</TabsTrigger>
-            <TabsTrigger value="week">This Week</TabsTrigger>
-            <TabsTrigger value="new">New Session</TabsTrigger>
-          </TabsList>
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <Tabs defaultValue="today">
+            <TabsList>
+              <TabsTrigger value="today">Today</TabsTrigger>
+              <TabsTrigger value="week">This Week</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="today" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Today's Classes</CardTitle>
-                <CardDescription>Tuesday, March 3, 2026</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {todayClasses.map((cls, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-lg border">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-1 h-12 rounded-full ${cls.mode === 'online' ? 'bg-blue-500' : 'bg-green-500'}`} />
-                      <div>
-                        <p className="font-medium">{cls.course}</p>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{cls.time}</span>
-                          <span className="flex items-center gap-1">
-                            {cls.mode === 'online' ? <Video className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
-                            {cls.location}
-                          </span>
-                          <span className="flex items-center gap-1"><Users className="h-3 w-3" />{cls.students} students</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={cls.mode === 'online' ? 'default' : 'outline'}>{cls.mode}</Badge>
-                      <Badge variant="secondary">{cls.type}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="week" className="mt-4 space-y-4">
-            {weekSchedule.map((day) => (
-              <Card key={day.day}>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{day.day}</CardTitle>
+            <TabsContent value="today" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Today's Classes</CardTitle>
+                  <CardDescription>{dayNames[today]}, {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {day.classes.map((cls, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                        <div className={`w-2 h-8 rounded-full ${cls.mode === 'online' ? 'bg-blue-500' : 'bg-green-500'}`} />
-                        <div>
-                          <p className="font-medium text-sm">{cls.course}</p>
-                          <p className="text-xs text-muted-foreground">{cls.time} • {cls.students} students</p>
+                  {todayEntries.length === 0 ? (
+                    <EmptyState title="No classes today" description="You have no scheduled classes for today." />
+                  ) : (
+                    <div className="space-y-3">
+                      {todayEntries.map(e => (
+                        <div key={e.id} className="flex items-center justify-between p-4 rounded-lg border">
+                          <div className="flex items-center gap-4">
+                            <div className="w-1 h-12 rounded-full bg-primary" />
+                            <div>
+                              <p className="font-medium">{e.course?.code} — {e.course?.title}</p>
+                              <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTime(e.start_time)} - {formatTime(e.end_time)}</span>
+                                {e.venue && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{e.venue}</span>}
+                                <span className="flex items-center gap-1"><Users className="h-3 w-3" />{e.studentCount} students</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <Badge variant="outline" className="ml-auto text-xs">{cls.mode}</Badge>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            ))}
-          </TabsContent>
+            </TabsContent>
 
-          <TabsContent value="new" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Schedule New Class Session</CardTitle>
-                <CardDescription>Create a physical or online class</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Course</Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cs101">CS101 - Intro to CS</SelectItem>
-                        <SelectItem value="cs201">CS201 - Data Structures</SelectItem>
-                        <SelectItem value="web101">WEB101 - Web Dev</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Class Type</Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="lecture">Lecture</SelectItem>
-                        <SelectItem value="lab">Lab</SelectItem>
-                        <SelectItem value="tutorial">Tutorial</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Mode</Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Physical or Online" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="physical">Physical</SelectItem>
-                        <SelectItem value="online">Online (Zoom)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date</Label>
-                    <Input type="date" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Start Time</Label>
-                    <Input type="time" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Time</Label>
-                    <Input type="time" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Location / Zoom Link</Label>
-                    <Input placeholder="e.g., Hall A or https://zoom.us/..." />
-                  </div>
-                </div>
-                <Button>Create Session</Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="week" className="mt-4 space-y-4">
+              {weekGrouped.length === 0 ? (
+                <Card><CardContent className="pt-6"><EmptyState title="No schedule found" description="No timetable entries found for your courses." /></CardContent></Card>
+              ) : weekGrouped.map(day => (
+                <Card key={day.day}>
+                  <CardHeader className="pb-3"><CardTitle className="text-base">{day.day}</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {day.classes.map(cls => (
+                        <div key={cls.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                          <div className="w-2 h-8 rounded-full bg-primary" />
+                          <div>
+                            <p className="font-medium text-sm">{cls.course?.code}</p>
+                            <p className="text-xs text-muted-foreground">{formatTime(cls.start_time)}-{formatTime(cls.end_time)} • {cls.studentCount} students</p>
+                          </div>
+                          {cls.venue && <Badge variant="outline" className="ml-auto text-xs">{cls.venue}</Badge>}
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </DashboardLayout>
   );
