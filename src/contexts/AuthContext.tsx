@@ -15,6 +15,7 @@ export interface UserProfile {
   avatar?: string;
   department?: string;
   institution?: string;
+  institutionId?: string;
   matricNumber?: string;
   staffId?: string;
   createdAt: string;
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: profile.phone || undefined,
         avatar: profile.avatar_url || undefined,
         department: profile.department || undefined,
+        institutionId: profile.institution_id || undefined,
         matricNumber: profile.matric_number || undefined,
         staffId: profile.staff_id || undefined,
         createdAt: profile.created_at || new Date().toISOString(),

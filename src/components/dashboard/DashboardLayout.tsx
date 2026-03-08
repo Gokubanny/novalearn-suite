@@ -8,7 +8,8 @@ import {
   Settings, 
   Bell,
   Menu,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -21,11 +22,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useSubscription, type SubscriptionPlan } from '@/hooks/useSubscription';
+import { Badge } from '@/components/ui/badge';
+import { getPlanLabel } from '@/hooks/useSubscription';
 
-interface NavItem {
+export interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  requiredPlan?: SubscriptionPlan;
 }
 
 interface DashboardLayoutProps {
@@ -38,6 +43,7 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, navItems, roleLabel, accentColor }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { plan, canAccess } = useSubscription();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -125,22 +131,32 @@ export function DashboardLayout({ children, navItems, roleLabel, accentColor }: 
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => (
-              <Link
-                key={item.name}
-                to={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-                  isActive(item.href)
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const isLocked = item.requiredPlan && !canAccess(item.requiredPlan === 'pro' ? 'ai_assistant' : item.requiredPlan === 'enterprise' ? 'facial_recognition' : 'ai_assistant');
+              // More precise: check if the plan level is sufficient
+              const planOrder: Record<string, number> = { basic: 0, pro: 1, enterprise: 2 };
+              const locked = item.requiredPlan ? planOrder[plan] < planOrder[item.requiredPlan] : false;
+
+              return (
+                <Link
+                  key={item.name}
+                  to={locked ? '/dashboard/admin/subscription' : item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                    locked
+                      ? "text-muted-foreground/50 hover:bg-muted/50"
+                      : isActive(item.href)
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                  <span className="flex-1">{item.name}</span>
+                  {locked && <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* User Section */}

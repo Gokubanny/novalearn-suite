@@ -1,89 +1,245 @@
 
+# NovaLearn Suite - Image & Visual Enhancement Plan
 
-# Plan: Subscription-Based Dashboard Feature Gating
+## Current Problem
+The site currently has:
+- Only abstract gradients and patterns
+- Icon-only feature representations
+- Text placeholder avatars for testimonials
+- No photos of real educational environments
+- Missing visual proof of the product
 
-## What We're Building
+This makes the site feel like an empty template rather than a trusted educational platform.
 
-Read the institution's `subscription_plan` (Basic/Pro/Enterprise) from the database and use it to conditionally show, hide, or lock dashboard features with upgrade prompts.
+---
 
-## Feature Matrix
+## Image Strategy Overview
 
-```text
-Feature                  | Basic | Pro   | Enterprise
-─────────────────────────┼───────┼───────┼───────────
-Max Students             | 500   | 2,000 | Unlimited
-Max Lecturers            | 10    | 50    | Unlimited
-AI Assistant             | ✗     | ✓     | ✓
-Advanced Analytics       | ✗     | ✓     | ✓
-Facial Recognition       | ✗     | ✗     | ✓
-Notification Centre      | Basic | Full  | Full
-Priority Support         | ✗     | ✓     | ✓
-```
+I'll add high-quality educational images from Unsplash (free, no attribution required for commercial use) throughout the site, plus create the Features, Pricing, and Contact pages with rich imagery.
 
-## Implementation Steps
+---
 
-### 1. Extend AuthContext with `institutionId`
+## Phase 1: Landing Page Image Enhancement
 
-**File:** `src/contexts/AuthContext.tsx`
-- Add `institutionId?: string` to `UserProfile` interface
-- In `fetchUserProfile`, map `profile.institution_id` to the new field
+### Hero Section
+**Add a hero image alongside the 3D elements:**
+- Large image showing students in a modern classroom or university setting
+- Or a split layout: 3D animation on one side, real campus image on the other
+- Dashboard mockup screenshot showing the actual product interface
 
-### 2. Create `useSubscription` Hook
+### Features Section
+**Add feature-specific images for each card:**
+- AI Learning Assistant → Image of student using laptop with digital overlay
+- Biometric Attendance → Face scanning/technology image
+- Online Classes → Students in video call/virtual classroom
+- Exam Proctoring → Student taking online exam
+- Analytics → Data dashboard visualization
+- Multi-Role Access → Different personas (admin, lecturer, student)
+- Course Management → Lecturer teaching
+- Result Management → Graduation ceremony
+- Enterprise Security → Server/security imagery
+- Notifications → Mobile device notifications
+- Academic Calendar → Campus calendar/planning
+- Mobile Responsive → Students using phones/tablets
 
-**File:** `src/hooks/useSubscription.ts` (new)
-- Takes `institutionId` from `useAuth()`
-- Queries `institutions` table for `subscription_plan`
-- Returns `{ plan, isLoading, canAccess(feature), limits }`
-- Contains a static config map defining which features/limits each plan gets
+### Testimonials Section
+**Replace text avatars with real photos:**
+- Professional headshots for each testimonial author
+- Add institution logos (or styled placeholders)
+- Background image of Nigerian university campus
 
-### 3. Create `UpgradePrompt` Component
+### Trust Section
+**Add institution logos:**
+- Create styled placeholder logos for partner universities
+- Or use generic university building images
 
-**File:** `src/components/dashboard/UpgradePrompt.tsx` (new)
-- Reusable card: icon, "This feature requires [Plan]" message, feature description
-- CTA button linking to `/dashboard/admin/subscription`
-- Used on all gated pages
+### CTA Section
+**Add background image:**
+- Students celebrating/graduating
+- Modern campus aerial view
+- Blended with the current gradient overlay
 
-### 4. Gate Dashboard Pages
+---
 
-- **`AIAssistantPage.tsx`** — If plan is Basic, render `UpgradePrompt` instead of chat (requires Pro+)
-- **`FacialRecognitionPage.tsx`** — If plan is not Enterprise, render `UpgradePrompt` (requires Enterprise)
-- **`NotificationCentrePage.tsx`** — Basic: limit to 10 notifications, disable real-time; Pro/Enterprise: full access
+## Phase 2: Features Page (New)
 
-### 5. Add Nav Item Locking
+### Hero Area
+- Large hero image: Students collaborating in modern learning space
+- Product screenshot mockup
 
-**File:** `src/components/dashboard/DashboardLayout.tsx`
-- Extend `NavItem` interface with optional `requiredPlan?: string`
-- In sidebar rendering, show a lock icon next to gated items and redirect to subscription page on click
-- Update nav item arrays in Student/Lecturer/Admin dashboards to tag gated features
+### Feature Categories with Images
+Organize features by user role with relevant images:
 
-### 6. Admin Dashboard Plan Badge & Usage
+**For Students:**
+- AI Learning Assistant with laptop/study image
+- Course materials with library/books image
+- Result portal with graduation image
+- Attendance tracking with mobile phone image
 
-**File:** `src/pages/dashboard/AdminDashboard.tsx`
-- Show current plan badge in header area
-- Display usage progress bars (e.g., "120/500 Students") by querying profile counts
-- Warning banner when usage exceeds 80% of limit
+**For Lecturers:**
+- Course management with teacher/classroom image
+- Attendance panel with technology image
+- Grading system with assessment image
 
-### 7. Wire Subscription Page to Real Data
+**For School Admins:**
+- Dashboard overview with admin/office image
+- Student management with registration image
+- Analytics with data visualization image
 
-**File:** `src/pages/dashboard/admin/SubscriptionPage.tsx`
-- Fetch actual `subscription_plan` from `institutions` table
-- Mark the current plan as active dynamically
-- Show real usage counts against plan limits
+**For Super Admins:**
+- Platform management with server/tech image
+- Revenue analytics with business meeting image
 
-## Files Summary
+### Interactive Comparison Section
+- Side-by-side role comparison with avatar images
+- Animated feature reveals
 
-| File | Action |
-|------|--------|
-| `src/contexts/AuthContext.tsx` | Modify — add `institutionId` |
-| `src/hooks/useSubscription.ts` | Create — subscription hook |
-| `src/components/dashboard/UpgradePrompt.tsx` | Create — upgrade prompt card |
-| `src/components/dashboard/DashboardLayout.tsx` | Modify — nav item lock icons |
-| `src/pages/dashboard/student/AIAssistantPage.tsx` | Modify — gate behind Pro |
-| `src/pages/dashboard/ai/FacialRecognitionPage.tsx` | Modify — gate behind Enterprise |
-| `src/pages/dashboard/ai/NotificationCentrePage.tsx` | Modify — limit for Basic |
-| `src/pages/dashboard/AdminDashboard.tsx` | Modify — plan badge + usage bars |
-| `src/pages/dashboard/admin/SubscriptionPage.tsx` | Modify — real plan data |
-| Student/Lecturer nav arrays | Modify — tag gated items |
+---
 
-No database changes needed — `institutions.subscription_plan` already exists.
+## Phase 3: Pricing Page (New)
 
+### Hero Section
+- Image of institution planning/budgeting
+- Trust indicators with customer logos
+
+### Plan Cards (Enhanced)
+- Each plan with relevant institution size image:
+  - Basic: Small college classroom
+  - Pro: Medium university lecture hall
+  - Enterprise: Large campus aerial view
+
+### Feature Comparison Table
+- Clear visual checkmarks and icons
+- Animated tooltips
+
+### FAQ Section with Icons
+- Common questions about pricing
+- Accordion with smooth animations
+
+### Social Proof Section
+- Customer testimonial images
+- Case study previews with school photos
+
+---
+
+## Phase 4: Contact Page (New)
+
+### Hero Section
+- Image of support team or office
+- Warm, welcoming atmosphere
+
+### Contact Form Area
+- Animated form with validation
+- Background: Students getting help/support image
+
+### Contact Information Cards
+- Office location with map placeholder
+- Phone support with headset image
+- Email support with communication icon
+- Live chat option
+
+### FAQ Quick Links
+- Common questions before contacting
+
+### Office/Team Section
+- Team photos or office environment
+- Nigerian office location imagery
+
+---
+
+## Phase 5: Blog Page (New)
+
+### Hero Section
+- Educational/learning themed image
+- Search and category filters
+
+### Featured Post
+- Large hero image for featured article
+- Educational content preview
+
+### Post Grid
+- Each post card with relevant educational image
+- Categories: EdTech, Tips, Updates, Case Studies
+
+### Sidebar
+- Popular posts with thumbnails
+- Newsletter signup with image
+
+---
+
+## Image Sources
+
+All images will use Unsplash URLs (free for commercial use):
+
+**Campus/University Images:**
+- https://images.unsplash.com/photo-1562774053-701939374585 (university building)
+- https://images.unsplash.com/photo-1523050854058-8df90110c9f1 (graduation)
+- https://images.unsplash.com/photo-1541339907198-e08756dedf3f (campus)
+
+**Classroom/Learning Images:**
+- https://images.unsplash.com/photo-1524178232363-1fb2b075b655 (lecture hall)
+- https://images.unsplash.com/photo-1427504494785-3a9ca7044f45 (students studying)
+- https://images.unsplash.com/photo-1509062522246-3755977927d7 (modern classroom)
+
+**Technology/EdTech Images:**
+- https://images.unsplash.com/photo-1531482615713-2afd69097998 (online learning)
+- https://images.unsplash.com/photo-1516321318423-f06f85e504b3 (laptop learning)
+- https://images.unsplash.com/photo-1573164713988-8665fc963095 (face recognition tech)
+
+**Professional/Team Images:**
+- https://images.unsplash.com/photo-1573496359142-b8d87734a5a2 (professional woman)
+- https://images.unsplash.com/photo-1472099645785-5658abf4ff4e (professional man)
+- https://images.unsplash.com/photo-1560250097-0b93528c311a (business professional)
+
+---
+
+## Technical Implementation
+
+### New Components to Create
+1. `ImageWithFallback.tsx` - Lazy loading image with skeleton placeholder
+2. `ParallaxImage.tsx` - Image with subtle parallax scroll effect
+3. `ImageGrid.tsx` - Responsive image gallery component
+4. `AvatarImage.tsx` - Profile image with fallback
+
+### New Pages to Create
+1. `src/pages/FeaturesPage.tsx`
+2. `src/pages/PricingPage.tsx`
+3. `src/pages/ContactPage.tsx`
+4. `src/pages/BlogPage.tsx`
+
+### Updates to Existing Pages
+1. `HeroSection.tsx` - Add hero image/dashboard mockup
+2. `FeaturesSection.tsx` - Add images to feature cards
+3. `TestimonialsSection.tsx` - Add real avatar photos
+4. `CTASection.tsx` - Add background image
+
+### Performance Considerations
+- Lazy loading for all images below the fold
+- Proper `srcset` for responsive images
+- WebP format where supported
+- Skeleton loading states
+- `loading="lazy"` attribute
+
+---
+
+## Summary of Deliverables
+
+**Landing Page Enhancements:**
+- Hero image/dashboard mockup
+- 12 feature card images
+- 4 testimonial photos
+- University logos/images
+- CTA background image
+
+**New Pages:**
+- Features Page with role-based organization and images
+- Pricing Page with comparison table and FAQ
+- Contact Page with animated form
+- Blog Page with post grid
+
+**New Components:**
+- ImageWithFallback (lazy loading)
+- ParallaxImage (scroll effect)
+- Avatar images for testimonials
+
+This will transform NovaLearn Suite from a template into a visually rich, trustworthy educational platform.

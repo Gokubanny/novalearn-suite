@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { useSubscription } from '@/hooks/useSubscription';
+import { UpgradePrompt } from '@/components/dashboard/UpgradePrompt';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/student', icon: Home },
@@ -15,7 +17,7 @@ const navItems = [
   { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
   { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
   { name: 'Results', href: '/dashboard/student/results', icon: Trophy },
-  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain },
+  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain, requiredPlan: 'pro' as const },
   { name: 'Profile', href: '/dashboard/student/profile', icon: User },
 ];
 
@@ -82,6 +84,7 @@ async function streamChat({ messages, onDelta, onDone, onError }: {
 }
 
 export default function StudentAIAssistantPage() {
+  const { plan, canAccess } = useSubscription();
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'assistant', content: "Hello! I'm your NexfordEdu AI assistant. I can help you with coursework, study plans, and academic questions. How can I help you today?" }
   ]);
@@ -92,6 +95,19 @@ export default function StudentAIAssistantPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  if (!canAccess('ai_assistant')) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
+        <UpgradePrompt
+          feature="AI Study Assistant"
+          description="Get instant help with coursework, study plans, and academic questions using our AI-powered assistant."
+          requiredPlan="pro"
+          currentPlan={plan}
+        />
+      </DashboardLayout>
+    );
+  }
 
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;
