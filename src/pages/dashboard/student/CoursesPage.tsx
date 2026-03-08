@@ -241,7 +241,10 @@ export default function StudentCoursesPage() {
         )}
         {enrolled ? (
           <div className="flex gap-2">
-            <Button className="flex-1">Continue Learning</Button>
+            <Button className="flex-1" onClick={() => setMaterialsCourse({ id: course.id, title: course.title })}>
+              <FileText className="h-4 w-4 mr-2" />
+              Materials
+            </Button>
             <Button
               variant="outline"
               size="icon"
