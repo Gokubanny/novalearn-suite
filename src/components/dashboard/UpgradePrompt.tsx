@@ -1,10 +1,11 @@
 import { Lock, ArrowUpCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { SubscriptionPlan } from '@/hooks/useSubscription';
 import { getPlanLabel } from '@/hooks/useSubscription';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UpgradePromptProps {
   feature: string;
@@ -21,6 +22,13 @@ export function UpgradePrompt({
   currentPlan,
   upgradeHref = '/dashboard/admin/subscription',
 }: UpgradePromptProps) {
+  const { user } = useAuth();
+
+  // Students should never see upgrade prompts — redirect them to their dashboard
+  if (user?.role === 'student') {
+    return <Navigate to="/dashboard/student" replace />;
+  }
+
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
       <Card className="max-w-md w-full text-center border-dashed border-2 border-muted-foreground/20">

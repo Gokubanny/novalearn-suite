@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -79,65 +79,67 @@ const AUTH_COPY = {
   },
 };
 
-// ─── Animation variants ─────────────────────────────────────
-const imageVariants = {
-  initial: (direction: number) => ({
-    x: direction > 0 ? '100%' : '-100%',
-    opacity: 0,
-  }),
-  animate: {
-    x: 0,
-    opacity: 1,
-    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
-  },
-  exit: (direction: number) => ({
-    x: direction > 0 ? '-100%' : '100%',
-    opacity: 0,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
-  }),
-};
+// ─── Floating Particles ─────────────────────────────────────
+function FloatingParticles() {
+  const particles = useMemo(() => 
+    Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: Math.random() * 4 + 2,
+      duration: Math.random() * 8 + 6,
+      delay: Math.random() * 4,
+    })), []
+  );
 
-const formVariants = {
-  initial: (direction: number) => ({
-    x: direction > 0 ? 80 : -80,
-    opacity: 0,
-  }),
-  animate: {
-    x: 0,
-    opacity: 1,
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: 0.15 },
-  },
-  exit: (direction: number) => ({
-    x: direction > 0 ? -80 : 80,
-    opacity: 0,
-    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
-  }),
-};
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-full bg-white/20"
+          style={{
+            width: p.size,
+            height: p.size,
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+          }}
+          animate={{
+            y: [0, -30, 0],
+            x: [0, 15, -10, 0],
+            opacity: [0.2, 0.6, 0.2],
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
-const overlayTextVariants = {
-  initial: { opacity: 0, y: 40 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, delay: 0.35, ease: [0.22, 1, 0.36, 1] },
-  },
-  exit: {
-    opacity: 0,
-    y: -30,
-    transition: { duration: 0.3 },
-  },
-};
+// ─── Transition phases ──────────────────────────────────────
+// Phase 0: idle (split-screen)
+// Phase 1: form fades out, image expands to full width
+// Phase 2: image at full width (brief hold)
+// Phase 3: image shrinks back, new form fades in
 
 // ─── Main Component ─────────────────────────────────────────
 export default function AuthPage() {
   const location = useLocation();
   const isLogin = location.pathname === '/login';
   const mode: 'login' | 'register' = isLogin ? 'login' : 'register';
-  const direction = isLogin ? -1 : 1; // controls slide direction
 
   const { login, register: registerUser, user, isLoading } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
+
+  // Transition state
+  const [transitioning, setTransitioning] = useState(false);
+  const [phase, setPhase] = useState<0 | 1 | 2 | 3>(0);
+  const [displayMode, setDisplayMode] = useState<'login' | 'register'>(mode);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -146,33 +148,95 @@ export default function AuthPage() {
     }
   }, [user, navigate]);
 
+  // Sync displayMode when URL changes without transition (e.g. direct navigation)
+  useEffect(() => {
+    if (!transitioning) {
+      setDisplayMode(mode);
+    }
+  }, [mode, transitioning]);
+
+  const handleSwitch = useCallback(
+    (target: 'login' | 'register') => {
+      if (transitioning || target === displayMode) return;
+      setTransitioning(true);
+
+      // Phase 1: fade out form, expand image
+      setPhase(1);
+
+      setTimeout(() => {
+        // Phase 2: image is full-screen, swap content
+        setPhase(2);
+        setDisplayMode(target);
+        navigate(target === 'login' ? '/login' : '/register', { replace: true });
+
+        setTimeout(() => {
+          // Phase 3: shrink image, fade in new form
+          setPhase(3);
+
+          setTimeout(() => {
+            // Back to idle
+            setPhase(0);
+            setTransitioning(false);
+          }, 700);
+        }, 400);
+      }, 600);
+    },
+    [transitioning, displayMode, navigate]
+  );
+
+  // Image width based on phase
+  const getImageWidth = () => {
+    if (phase === 0 || phase === 3) return '50%';
+    if (phase === 1 || phase === 2) return '100%';
+    return '50%';
+  };
+
+  // Form opacity and position
+  const formVisible = phase === 0 || phase === 3;
+
   return (
-    <div className="min-h-screen flex bg-background overflow-hidden">
-      {/* ── Image Panel ─────────────────────────────────── */}
-      <div className="hidden lg:block lg:w-1/2 relative">
-        <AnimatePresence mode="wait" custom={direction}>
+    <div className="min-h-screen flex bg-background overflow-hidden relative">
+      {/* ── Mobile: Image as background ──────────────────── */}
+      <div
+        className="lg:hidden fixed inset-0 bg-cover bg-center z-0"
+        style={{ backgroundImage: `url(${AUTH_IMAGES[displayMode]})` }}
+      >
+        <div className="absolute inset-0 bg-background/85 backdrop-blur-sm" />
+      </div>
+
+      {/* ── Desktop: Animated Image Panel ────────────────── */}
+      <motion.div
+        className="hidden lg:block relative overflow-hidden"
+        animate={{ width: getImageWidth() }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <AnimatePresence mode="wait">
           <motion.div
-            key={mode}
-            custom={direction}
-            variants={imageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
+            key={displayMode}
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-0"
           >
-            <div
+            <motion.div
               className="absolute inset-0 bg-cover bg-center"
-              style={{ backgroundImage: `url(${AUTH_IMAGES[mode]})` }}
+              style={{ backgroundImage: `url(${AUTH_IMAGES[displayMode]})` }}
+              animate={{ scale: [1, 1.03, 1] }}
+              transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
             />
-            {/* Dark overlay */}
+
+            {/* Dark gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
+
+            {/* Floating particles */}
+            <FloatingParticles />
 
             {/* Overlay content */}
             <motion.div
-              variants={overlayTextVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="absolute inset-0 flex flex-col justify-between p-12 text-white z-10"
             >
               <Link
@@ -188,10 +252,10 @@ export default function AuthPage() {
                   <BookOpen className="h-7 w-7 text-white" />
                 </div>
                 <h1 className="text-4xl xl:text-5xl font-bold leading-tight tracking-tight">
-                  {AUTH_COPY[mode].heading}
+                  {AUTH_COPY[displayMode].heading}
                 </h1>
                 <p className="text-lg text-white/75 leading-relaxed">
-                  {AUTH_COPY[mode].sub}
+                  {AUTH_COPY[displayMode].sub}
                 </p>
               </div>
 
@@ -204,44 +268,49 @@ export default function AuthPage() {
             </motion.div>
           </motion.div>
         </AnimatePresence>
-      </div>
+      </motion.div>
 
       {/* ── Form Panel ──────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12 overflow-y-auto">
-        <AnimatePresence mode="wait" custom={direction}>
-          {isLogin ? (
-            <motion.div
-              key="login-form"
-              custom={direction}
-              variants={formVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="w-full max-w-md"
-            >
-              <LoginForm />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="register-form"
-              custom={direction}
-              variants={formVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              className="w-full max-w-md"
-            >
-              <RegisterForm />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <motion.div
+        className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12 overflow-y-auto relative z-10"
+        animate={{
+          opacity: formVisible ? 1 : 0,
+          x: formVisible ? 0 : (displayMode === 'register' ? 60 : -60),
+        }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="w-full max-w-md">
+          <AnimatePresence mode="wait">
+            {displayMode === 'login' ? (
+              <motion.div
+                key="login-form"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <LoginForm onSwitch={() => handleSwitch('register')} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="register-form"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <RegisterForm onSwitch={() => handleSwitch('login')} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
     </div>
   );
 }
 
 // ─── Login Form ─────────────────────────────────────────────
-function LoginForm() {
+function LoginForm({ onSwitch }: { onSwitch: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -342,16 +411,20 @@ function LoginForm() {
 
       <p className="text-center text-sm text-muted-foreground mt-8">
         Don't have an account?{' '}
-        <Link to="/register" className="text-primary hover:underline font-semibold">
+        <button
+          type="button"
+          onClick={onSwitch}
+          className="text-primary hover:underline font-semibold"
+        >
           Create account
-        </Link>
+        </button>
       </p>
     </>
   );
 }
 
 // ─── Register Form ──────────────────────────────────────────
-function RegisterForm() {
+function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
@@ -548,9 +621,13 @@ function RegisterForm() {
 
       <p className="text-center text-sm text-muted-foreground mt-6">
         Already have an account?{' '}
-        <Link to="/login" className="text-primary hover:underline font-semibold">
+        <button
+          type="button"
+          onClick={onSwitch}
+          className="text-primary hover:underline font-semibold"
+        >
           Sign in
-        </Link>
+        </button>
       </p>
     </>
   );
