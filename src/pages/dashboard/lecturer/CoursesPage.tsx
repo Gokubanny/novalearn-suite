@@ -85,6 +85,19 @@ export default function LecturerCoursesPage() {
     setLoading(false);
   };
 
+  if (discussionCourse) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={() => setDiscussionCourse(null)}>
+            ← Back to Courses
+          </Button>
+          <CourseDiscussions courseId={discussionCourse.id} courseName={discussionCourse.title} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
       <div className="space-y-6">
