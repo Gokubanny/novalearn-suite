@@ -209,8 +209,8 @@ export default function AuthPage() {
 
       {/* ── Desktop: Animated Image Panel ────────────────── */}
       <motion.div
-        className="hidden lg:block relative overflow-hidden"
-        animate={{ width: getImageWidth() }}
+        className="hidden lg:block overflow-hidden"
+        animate={getImageStyles()}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         <AnimatePresence mode="wait">
