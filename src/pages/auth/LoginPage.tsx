@@ -1,25 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { 
-  Eye, 
-  EyeOff, 
-  Loader2, 
-  ArrowLeft, 
-  GraduationCap, 
-  Users, 
-  Shield, 
-  Crown 
-} from 'lucide-react';
+import { Eye, EyeOff, Loader2, ArrowLeft, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -28,45 +18,28 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-const roleOptions: { role: UserRole; label: string; icon: typeof GraduationCap; color: string; redirectPath: string }[] = [
-  { 
-    role: 'student', 
-    label: 'Student', 
-    icon: GraduationCap, 
-    color: 'hsl(221, 83%, 53%)',
-    redirectPath: '/dashboard/student'
-  },
-  { 
-    role: 'lecturer', 
-    label: 'Lecturer', 
-    icon: Users, 
-    color: 'hsl(142, 71%, 45%)',
-    redirectPath: '/dashboard/lecturer'
-  },
-  { 
-    role: 'admin', 
-    label: 'Admin', 
-    icon: Shield, 
-    color: 'hsl(262, 83%, 58%)',
-    redirectPath: '/dashboard/admin'
-  },
-  { 
-    role: 'super_admin', 
-    label: 'Super Admin', 
-    icon: Crown, 
-    color: 'hsl(0, 84%, 60%)',
-    redirectPath: '/dashboard/super-admin'
-  },
-];
+function getRoleRedirectPath(role: UserRole): string {
+  const paths: Record<UserRole, string> = {
+    student: '/dashboard/student',
+    lecturer: '/dashboard/lecturer',
+    admin: '/dashboard/admin',
+    super_admin: '/dashboard/super-admin',
+  };
+  return paths[role];
+}
 
 export default function LoginPage() {
-  const [selectedRole, setSelectedRole] = useState<UserRole>('student');
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading } = useAuth();
+  const { login, user, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const currentRole = roleOptions.find(r => r.role === selectedRole)!;
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      navigate(getRoleRedirectPath(user.role), { replace: true });
+    }
+  }, [user, navigate]);
 
   const {
     register,
@@ -81,10 +54,9 @@ export default function LoginPage() {
     if (result.success) {
       toast({
         title: 'Welcome back!',
-        description: `You have successfully logged in.`,
+        description: 'You have successfully logged in.',
       });
-      // Navigate based on user's actual role (from DB), not selected role
-      navigate(currentRole.redirectPath);
+      // Redirect will happen via the useEffect when user state updates
     } else {
       toast({
         title: 'Login failed',
@@ -97,12 +69,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Branding */}
-      <motion.div 
-        className="hidden lg:flex lg:w-1/2 relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${currentRole.color} 0%, hsl(var(--primary)) 100%)` }}
-        animate={{ background: `linear-gradient(135deg, ${currentRole.color} 0%, hsl(var(--primary)) 100%)` }}
-        transition={{ duration: 0.5 }}
-      >
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary to-primary/80">
         <div className="absolute inset-0 bg-black/10" />
         <div className="relative z-10 flex flex-col justify-between p-12 text-white">
           <Link to="/" className="flex items-center gap-2 text-white/80 hover:text-white transition-colors">
@@ -112,24 +79,16 @@ export default function LoginPage() {
           
           <div className="space-y-6">
             <motion.div
-              key={selectedRole}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center"
-            >
-              <currentRole.icon className="h-10 w-10 text-white" />
-            </motion.div>
-            
-            <motion.div
-              key={`text-${selectedRole}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ delay: 0.2 }}
             >
-              <h1 className="text-4xl font-bold mb-4">{currentRole.label} Portal</h1>
+              <div className="w-20 h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-6">
+                <BookOpen className="h-10 w-10 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold mb-4">Welcome Back</h1>
               <p className="text-xl text-white/80 max-w-md">
-                Access your personalized dashboard and manage your academic journey with NexfordEdu.
+                Sign in to access your personalized dashboard and manage your academic journey with NexfordEdu.
               </p>
             </motion.div>
           </div>
@@ -145,7 +104,7 @@ export default function LoginPage() {
         {/* Decorative elements */}
         <div className="absolute -bottom-20 -right-20 w-80 h-80 rounded-full bg-white/10" />
         <div className="absolute top-20 -right-10 w-40 h-40 rounded-full bg-white/5" />
-      </motion.div>
+      </div>
       
       {/* Right Panel - Form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
@@ -161,11 +120,8 @@ export default function LoginPage() {
               <ArrowLeft className="h-4 w-4" />
               <span>Back to Home</span>
             </Link>
-            <div 
-              className="w-16 h-16 rounded-xl mx-auto mb-4 flex items-center justify-center transition-colors duration-300" 
-              style={{ backgroundColor: currentRole.color }}
-            >
-              <currentRole.icon className="h-8 w-8 text-white" />
+            <div className="w-16 h-16 rounded-xl bg-primary mx-auto mb-4 flex items-center justify-center">
+              <BookOpen className="h-8 w-8 text-primary-foreground" />
             </div>
             <h1 className="text-2xl font-bold">Sign In</h1>
             <p className="text-muted-foreground mt-2">Access your NexfordEdu account</p>
@@ -174,46 +130,6 @@ export default function LoginPage() {
           <div className="hidden lg:block mb-8">
             <h2 className="text-2xl font-bold">Welcome back</h2>
             <p className="text-muted-foreground mt-2">Enter your credentials to access your account</p>
-          </div>
-
-          {/* Role Selector */}
-          <div className="mb-6">
-            <Label className="mb-3 block">Sign in as</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {roleOptions.map((option) => {
-                const Icon = option.icon;
-                const isSelected = selectedRole === option.role;
-                return (
-                  <button
-                    key={option.role}
-                    type="button"
-                    onClick={() => setSelectedRole(option.role)}
-                    className={cn(
-                      "flex items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200",
-                      isSelected 
-                        ? "border-primary bg-primary/10" 
-                        : "border-border hover:border-muted-foreground/50 hover:bg-muted/50"
-                    )}
-                  >
-                    <div 
-                      className={cn(
-                        "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                        isSelected ? "bg-primary text-primary-foreground" : "bg-muted"
-                      )}
-                      style={isSelected ? { backgroundColor: option.color } : {}}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <span className={cn(
-                      "text-sm font-medium",
-                      isSelected ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {option.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Login Form */}
@@ -276,9 +192,6 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-
-
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don't have an account?{' '}
