@@ -8,7 +8,8 @@ import {
   Settings, 
   Bell,
   Menu,
-  X
+  X,
+  Lock
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -21,11 +22,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useSubscription, type SubscriptionPlan } from '@/hooks/useSubscription';
+import { Badge } from '@/components/ui/badge';
+import { getPlanLabel } from '@/hooks/useSubscription';
 
-interface NavItem {
+export interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  requiredPlan?: SubscriptionPlan;
 }
 
 interface DashboardLayoutProps {
