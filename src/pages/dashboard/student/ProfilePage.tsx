@@ -1,4 +1,5 @@
-import { Home, BookOpen, Calendar, FileText, Trophy, CheckCircle, Brain, User, Camera, Save } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Home, BookOpen, Calendar, FileText, Trophy, CheckCircle, Brain, User, Camera, Save, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/student', icon: Home },
@@ -20,33 +25,98 @@ const navItems = [
 ];
 
 export default function StudentProfilePage() {
+  const { user } = useAuth();
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', bio: '' });
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (user) fetchProfile(); }, [user]);
+
+  async function fetchProfile() {
+    const { data } = await supabase.from('profiles').select('*').eq('user_id', user!.id).single();
+    if (data) {
+      setProfile(data);
+      setForm({ first_name: data.first_name, last_name: data.last_name, phone: data.phone || '', bio: data.bio || '' });
+    }
+    setLoading(false);
+  }
+
+  async function handleSave() {
+    if (!profile) return;
+    setSaving(true);
+    const { error } = await supabase.from('profiles').update({
+      first_name: form.first_name,
+      last_name: form.last_name,
+      phone: form.phone || null,
+      bio: form.bio || null,
+    }).eq('id', profile.id);
+    if (error) toast.error(error.message);
+    else toast.success('Profile updated!');
+    setSaving(false);
+  }
+
+  async function handleAvatar() {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !profile) return;
+    const path = `${user!.id}/${Date.now()}_${file.name}`;
+    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    if (upErr) { toast.error(upErr.message); return; }
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id);
+    setProfile({ ...profile, avatar_url: publicUrl });
+    toast.success('Avatar updated!');
+  }
+
+  async function handlePasswordUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const newPw = fd.get('new_password') as string;
+    const confirm = fd.get('confirm_password') as string;
+    if (newPw !== confirm) { toast.error('Passwords do not match'); return; }
+    if (newPw.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    if (error) toast.error(error.message);
+    else { toast.success('Password updated!'); e.currentTarget.reset(); }
+  }
+
+  const initials = profile ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}` : '';
+
+  if (loading) return (
+    <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
+      <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+    </DashboardLayout>
+  );
+
   return (
     <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
       <div className="space-y-6">
         <div className="text-sm text-muted-foreground">
           Dashboard / <span className="text-foreground font-medium">Profile & Settings</span>
         </div>
-
         <div>
           <h1 className="text-2xl font-bold">Profile & Settings</h1>
           <p className="text-muted-foreground">Manage your account and preferences</p>
         </div>
 
-        {/* Avatar Section */}
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-6">
               <div className="relative">
                 <Avatar className="w-20 h-20">
-                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">JD</AvatarFallback>
+                  {profile?.avatar_url && <AvatarImage src={profile.avatar_url} />}
+                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{initials}</AvatarFallback>
                 </Avatar>
-                <Button size="icon" variant="outline" className="absolute -bottom-1 -right-1 rounded-full w-7 h-7">
+                <Button size="icon" variant="outline" className="absolute -bottom-1 -right-1 rounded-full w-7 h-7"
+                  onClick={() => fileRef.current?.click()}>
                   <Camera className="h-3 w-3" />
                 </Button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatar} />
               </div>
               <div>
-                <h2 className="text-xl font-bold">John Doe</h2>
-                <p className="text-muted-foreground">NEX/2024/001 • Computer Science • 200 Level</p>
+                <h2 className="text-xl font-bold">{profile?.first_name} {profile?.last_name}</h2>
+                <p className="text-muted-foreground">{profile?.matric_number || ''} • {profile?.department || ''}</p>
               </div>
             </div>
           </CardContent>
@@ -56,127 +126,48 @@ export default function StudentProfilePage() {
           <TabsList>
             <TabsTrigger value="personal">Personal Info</TabsTrigger>
             <TabsTrigger value="academic">Academic Info</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
           </TabsList>
 
           <TabsContent value="personal" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>Update your personal details</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle>Personal Information</CardTitle><CardDescription>Update your personal details</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>First Name</Label>
-                    <Input defaultValue="John" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Last Name</Label>
-                    <Input defaultValue="Doe" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input defaultValue="john.doe@nexford.edu" type="email" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input defaultValue="+234 801 234 5678" />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Address</Label>
-                    <Input defaultValue="123 University Road, Lagos" />
-                  </div>
+                  <div className="space-y-2"><Label>First Name</Label><Input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Last Name</Label><Input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} /></div>
+                  <div className="space-y-2"><Label>Email</Label><Input value={profile?.email || ''} disabled /></div>
+                  <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
                 </div>
-                <Button><Save className="h-4 w-4 mr-2" />Save Changes</Button>
+                <div className="space-y-2"><Label>Bio</Label><Textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} /></div>
+                <Button onClick={handleSave} disabled={saving}><Save className="h-4 w-4 mr-2" />{saving ? 'Saving...' : 'Save Changes'}</Button>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="academic" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Academic Information</CardTitle>
-                <CardDescription>Your enrollment details (read-only)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardHeader><CardTitle>Academic Information</CardTitle><CardDescription>Your enrollment details (read-only)</CardDescription></CardHeader>
+              <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Matric Number</Label>
-                    <Input defaultValue="NEX/2024/001" disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Department</Label>
-                    <Input defaultValue="Computer Science" disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Faculty</Label>
-                    <Input defaultValue="Science & Technology" disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Level</Label>
-                    <Input defaultValue="200 Level" disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Admission Year</Label>
-                    <Input defaultValue="2024" disabled />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Expected Graduation</Label>
-                    <Input defaultValue="2028" disabled />
-                  </div>
+                  <div className="space-y-2"><Label>Matric Number</Label><Input value={profile?.matric_number || '—'} disabled /></div>
+                  <div className="space-y-2"><Label>Department</Label><Input value={profile?.department || '—'} disabled /></div>
+                  <div className="space-y-2"><Label>Email</Label><Input value={profile?.email || ''} disabled /></div>
+                  <div className="space-y-2"><Label>Staff ID</Label><Input value={profile?.staff_id || '—'} disabled /></div>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="notifications" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>Control what you receive</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {[
-                  { label: 'Assignment Deadlines', desc: 'Get notified before assignments are due' },
-                  { label: 'Grade Updates', desc: 'Receive alerts when grades are posted' },
-                  { label: 'Class Schedule Changes', desc: 'Alerts for schedule modifications' },
-                  { label: 'Attendance Warnings', desc: 'Notify when attendance drops below threshold' },
-                  { label: 'AI Study Recommendations', desc: 'Personalized study tips from AI' },
-                ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between p-3 rounded-lg border">
-                    <div>
-                      <p className="font-medium text-sm">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                ))}
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="security" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>Manage password and security</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Current Password</Label>
-                  <Input type="password" placeholder="Enter current password" />
-                </div>
-                <div className="space-y-2">
-                  <Label>New Password</Label>
-                  <Input type="password" placeholder="Enter new password" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Confirm New Password</Label>
-                  <Input type="password" placeholder="Confirm new password" />
-                </div>
-                <Button>Update Password</Button>
+              <CardHeader><CardTitle>Security Settings</CardTitle><CardDescription>Change your password</CardDescription></CardHeader>
+              <CardContent>
+                <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                  <div className="space-y-2"><Label>New Password</Label><Input type="password" name="new_password" placeholder="Enter new password" required /></div>
+                  <div className="space-y-2"><Label>Confirm Password</Label><Input type="password" name="confirm_password" placeholder="Confirm new password" required /></div>
+                  <Button type="submit">Update Password</Button>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
