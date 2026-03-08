@@ -184,11 +184,14 @@ export default function AuthPage() {
     [transitioning, displayMode, navigate]
   );
 
-  // Image width based on phase
-  const getImageWidth = () => {
-    if (phase === 0 || phase === 3) return '50%';
-    if (phase === 1 || phase === 2) return '100%';
-    return '50%';
+  // Image panel positioning based on phase
+  const getImageStyles = () => {
+    if (phase === 1 || phase === 2) {
+      // Fullscreen: absolute positioning
+      return { position: 'absolute' as const, inset: '0', width: '100vw', zIndex: 20 };
+    }
+    // Split-screen: normal flex layout
+    return { position: 'relative' as const, width: '50%', zIndex: 1 };
   };
 
   // Form opacity and position
