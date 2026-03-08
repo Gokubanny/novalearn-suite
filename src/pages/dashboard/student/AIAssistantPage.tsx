@@ -84,12 +84,26 @@ async function streamChat({ messages, onDelta, onDone, onError }: {
 }
 
 export default function StudentAIAssistantPage() {
+  const { plan, canAccess } = useSubscription();
   const [messages, setMessages] = useState<Msg[]>([
     { role: 'assistant', content: "Hello! I'm your NexfordEdu AI assistant. I can help you with coursework, study plans, and academic questions. How can I help you today?" }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  if (!canAccess('ai_assistant')) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
+        <UpgradePrompt
+          feature="AI Study Assistant"
+          description="Get instant help with coursework, study plans, and academic questions using our AI-powered assistant."
+          requiredPlan="pro"
+          currentPlan={plan}
+        />
+      </DashboardLayout>
+    );
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
