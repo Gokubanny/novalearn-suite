@@ -37,6 +37,7 @@ export default function LecturerCoursesPage() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<LecturerCourse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [discussionCourse, setDiscussionCourse] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
