@@ -171,6 +171,19 @@ export default function StudentCoursesPage() {
         c.code.toLowerCase().includes(search.toLowerCase())
     );
 
+  if (materialsCourse) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={() => setMaterialsCourse(null)}>
+            ← Back to Courses
+          </Button>
+          <CourseMaterials courseId={materialsCourse.id} courseName={materialsCourse.title} canUpload={false} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (discussionCourse) {
     return (
       <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
