@@ -49,6 +49,7 @@ export default function StudentCoursesPage() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('enrolled');
   const [discussionCourse, setDiscussionCourse] = useState<{ id: string; title: string } | null>(null);
+  const [materialsCourse, setMaterialsCourse] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
