@@ -92,6 +92,10 @@ export default function StudentAIAssistantPage() {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
   if (!canAccess('ai_assistant')) {
     return (
       <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
@@ -104,10 +108,6 @@ export default function StudentAIAssistantPage() {
       </DashboardLayout>
     );
   }
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
 
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;

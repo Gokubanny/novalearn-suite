@@ -40,8 +40,22 @@ const undetectedStudents = [
 ];
 
 export default function FacialRecognitionPage() {
+  const { plan, canAccess } = useSubscription();
   const [isScanning, setIsScanning] = useState(false);
   const [autoSubmit, setAutoSubmit] = useState(false);
+
+  if (!canAccess('facial_recognition')) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 70%, 45%)">
+        <UpgradePrompt
+          feature="AI Facial Recognition"
+          description="Automate attendance marking with AI-powered facial recognition technology for faster, more accurate tracking."
+          requiredPlan="enterprise"
+          currentPlan={plan}
+        />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 70%, 45%)">
