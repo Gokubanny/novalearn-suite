@@ -26,8 +26,7 @@ const CookiesPage = lazy(() => import("./pages/CookiesPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Auth pages
-const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
-const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
+const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 
 // Dashboard pages
@@ -139,9 +138,9 @@ const App = () => (
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/cookies" element={<CookiesPage />} />
               
-              {/* Auth Pages - Unified Login */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
+              {/* Auth Pages - Unified with cinematic transitions */}
+              <Route path="/login" element={<AuthPage />} />
+              <Route path="/register" element={<AuthPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               
               {/* Protected Student Dashboard Routes */}
