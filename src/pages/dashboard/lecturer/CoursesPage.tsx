@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CourseDiscussions } from '@/components/course/CourseDiscussions';
+import { CourseMaterials } from '@/components/course/CourseMaterials';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -38,6 +39,7 @@ export default function LecturerCoursesPage() {
   const [courses, setCourses] = useState<LecturerCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [discussionCourse, setDiscussionCourse] = useState<{ id: string; title: string } | null>(null);
+  const [materialsCourse, setMaterialsCourse] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -93,6 +95,19 @@ export default function LecturerCoursesPage() {
             ← Back to Courses
           </Button>
           <CourseDiscussions courseId={discussionCourse.id} courseName={discussionCourse.title} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (materialsCourse) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 71%, 45%)">
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={() => setMaterialsCourse(null)}>
+            ← Back to Courses
+          </Button>
+          <CourseMaterials courseId={materialsCourse.id} courseName={materialsCourse.title} canUpload={true} />
         </div>
       </DashboardLayout>
     );
@@ -163,9 +178,9 @@ export default function LecturerCoursesPage() {
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
-                    <Button className="flex-1" variant="outline">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
+                    <Button className="flex-1" variant="outline" onClick={() => setMaterialsCourse({ id: course.id, title: course.title })}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Materials
                     </Button>
                     <Button
                       variant="outline"

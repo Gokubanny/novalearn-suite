@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CourseDiscussions } from '@/components/course/CourseDiscussions';
+import { CourseMaterials } from '@/components/course/CourseMaterials';
 import { useToast } from '@/hooks/use-toast';
 
 const navItems = [
@@ -48,6 +49,7 @@ export default function StudentCoursesPage() {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('enrolled');
   const [discussionCourse, setDiscussionCourse] = useState<{ id: string; title: string } | null>(null);
+  const [materialsCourse, setMaterialsCourse] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -169,6 +171,19 @@ export default function StudentCoursesPage() {
         c.code.toLowerCase().includes(search.toLowerCase())
     );
 
+  if (materialsCourse) {
+    return (
+      <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
+        <div className="space-y-4">
+          <Button variant="ghost" onClick={() => setMaterialsCourse(null)}>
+            ← Back to Courses
+          </Button>
+          <CourseMaterials courseId={materialsCourse.id} courseName={materialsCourse.title} canUpload={false} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (discussionCourse) {
     return (
       <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
@@ -226,7 +241,10 @@ export default function StudentCoursesPage() {
         )}
         {enrolled ? (
           <div className="flex gap-2">
-            <Button className="flex-1">Continue Learning</Button>
+            <Button className="flex-1" onClick={() => setMaterialsCourse({ id: course.id, title: course.title })}>
+              <FileText className="h-4 w-4 mr-2" />
+              Materials
+            </Button>
             <Button
               variant="outline"
               size="icon"
