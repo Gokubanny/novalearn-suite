@@ -65,10 +65,21 @@ export default function StudentManagementPage() {
     
     if (!adminProfile?.institution_id) { setLoading(false); return; }
 
+    // Get student user_ids from user_roles
+    const { data: studentRoles } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'student');
+
+    const studentUserIds = (studentRoles || []).map(r => r.user_id);
+
+    if (studentUserIds.length === 0) { setStudents([]); setLoading(false); return; }
+
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, user_id, first_name, last_name, email, matric_number, department, avatar_url, approval_status, created_at')
       .eq('institution_id', adminProfile.institution_id)
+      .in('user_id', studentUserIds)
       .order('created_at', { ascending: false });
 
     setStudents(profiles as StudentProfile[] || []);
