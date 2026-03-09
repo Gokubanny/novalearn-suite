@@ -143,6 +143,7 @@ const App = () => (
               <Route path="/login" element={<AuthPage />} />
               <Route path="/register" element={<AuthPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/pending-approval" element={<PendingApprovalPage />} />
               
               {/* Protected Student Dashboard Routes */}
               <Route path="/dashboard/student" element={
