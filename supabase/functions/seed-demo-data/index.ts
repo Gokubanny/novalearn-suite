@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   // Create institution
   const { data: inst } = await supabaseAdmin
     .from("institutions")
-    .upsert({ code: "NEXFORD", name: "Nexford University", city: "Lagos", state: "Lagos", address: "12 Victoria Island", is_active: true, subscription_plan: "premium" }, { onConflict: "code" })
+    .upsert({ code: "NEXFORD", name: "Nexford University", city: "Lagos", state: "Lagos", address: "12 Victoria Island", is_active: true, subscription_plan: "pro" }, { onConflict: "code" })
     .select("id")
     .single();
 

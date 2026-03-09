@@ -56,7 +56,7 @@ export default function AdminDashboard() {
     const { data: adminProfile } = await supabase
       .from('profiles')
       .select('institution_id')
-      .eq('user_id', user.id)
+      .eq('user_id', user.userId)
       .single();
 
     if (!adminProfile?.institution_id) { setLoading(false); return; }

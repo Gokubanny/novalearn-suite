@@ -114,8 +114,23 @@ export function CourseMaterials({ courseId, courseName, canUpload }: CourseMater
     setUploading(false);
   };
 
-  const handleDownload = (url: string, name: string) => {
-    window.open(url, '_blank');
+  const handleDownload = async (filePath: string, name: string) => {
+    // For private buckets, generate a signed URL
+    // Extract the storage path from the full URL if needed
+    const storagePath = filePath.includes('/storage/v1/object/public/')
+      ? filePath.split('/storage/v1/object/public/course-materials/')[1]
+      : filePath;
+    
+    const { data, error } = await supabase.storage
+      .from('course-materials')
+      .createSignedUrl(storagePath, 3600); // 1 hour expiry
+
+    if (error || !data?.signedUrl) {
+      // Fallback to direct URL
+      window.open(filePath, '_blank');
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
   };
 
   const getFileIcon = (type: string | null) => {
