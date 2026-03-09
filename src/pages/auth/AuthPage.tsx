@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -79,54 +79,6 @@ const AUTH_COPY = {
   },
 };
 
-// ─── Floating Particles ─────────────────────────────────────
-function FloatingParticles() {
-  const particles = useMemo(() => 
-    Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 4 + 2,
-      duration: Math.random() * 8 + 6,
-      delay: Math.random() * 4,
-    })), []
-  );
-
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
-      {particles.map((p) => (
-        <motion.div
-          key={p.id}
-          className="absolute rounded-full bg-white/20"
-          style={{
-            width: p.size,
-            height: p.size,
-            left: `${p.x}%`,
-            top: `${p.y}%`,
-          }}
-          animate={{
-            y: [0, -30, 0],
-            x: [0, 15, -10, 0],
-            opacity: [0.2, 0.6, 0.2],
-          }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── Transition phases ──────────────────────────────────────
-// Phase 0: idle (split-screen)
-// Phase 1: form fades out, image expands to full width
-// Phase 2: image at full width (brief hold)
-// Phase 3: image shrinks back, new form fades in
-
 // ─── Main Component ─────────────────────────────────────────
 export default function AuthPage() {
   const location = useLocation();
@@ -136,9 +88,6 @@ export default function AuthPage() {
   const { login, register: registerUser, user, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  // Transition state
-  const [transitioning, setTransitioning] = useState(false);
-  const [phase, setPhase] = useState<0 | 1 | 2 | 3>(0);
   const [displayMode, setDisplayMode] = useState<'login' | 'register'>(mode);
 
   // Redirect if already logged in
@@ -148,54 +97,18 @@ export default function AuthPage() {
     }
   }, [user, navigate]);
 
-  // Sync displayMode when URL changes without transition (e.g. direct navigation)
+  // Sync displayMode when URL changes
   useEffect(() => {
-    if (!transitioning) {
-      setDisplayMode(mode);
-    }
-  }, [mode, transitioning]);
+    setDisplayMode(mode);
+  }, [mode]);
 
   const handleSwitch = useCallback(
     (target: 'login' | 'register') => {
-      if (transitioning || target === displayMode) return;
-      setTransitioning(true);
-
-      // Phase 1: fade out form, expand image
-      setPhase(1);
-
-      setTimeout(() => {
-        // Phase 2: image is full-screen, swap content
-        setPhase(2);
-        setDisplayMode(target);
-        navigate(target === 'login' ? '/login' : '/register', { replace: true });
-
-        setTimeout(() => {
-          // Phase 3: shrink image, fade in new form
-          setPhase(3);
-
-          setTimeout(() => {
-            // Back to idle
-            setPhase(0);
-            setTransitioning(false);
-          }, 700);
-        }, 400);
-      }, 600);
+      if (target === displayMode) return;
+      navigate(target === 'login' ? '/login' : '/register', { replace: true });
     },
-    [transitioning, displayMode, navigate]
+    [displayMode, navigate]
   );
-
-  // Image panel positioning based on phase
-  const getImageStyles = () => {
-    if (phase === 1 || phase === 2) {
-      // Fullscreen: absolute positioning
-      return { position: 'absolute' as const, inset: '0', width: '100vw', zIndex: 20 };
-    }
-    // Split-screen: normal flex layout
-    return { position: 'relative' as const, width: '50%', zIndex: 1 };
-  };
-
-  // Form opacity and position
-  const formVisible = phase === 0 || phase === 3;
 
   return (
     <div className="min-h-screen flex bg-background overflow-hidden relative">
@@ -207,41 +120,27 @@ export default function AuthPage() {
         <div className="absolute inset-0 bg-background/85 backdrop-blur-sm" />
       </div>
 
-      {/* ── Desktop: Animated Image Panel ────────────────── */}
-      <motion.div
-        className="hidden lg:block overflow-hidden"
-        animate={getImageStyles()}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      >
+      {/* ── Desktop: Image Panel (fixed 50%) ─────────────── */}
+      <div className="hidden lg:block w-1/2 relative overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={displayMode}
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: 'easeInOut' }}
             className="absolute inset-0"
           >
-            <motion.div
+            <div
               className="absolute inset-0 bg-cover bg-center"
               style={{ backgroundImage: `url(${AUTH_IMAGES[displayMode]})` }}
-              animate={{ scale: [1, 1.03, 1] }}
-              transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
             />
 
             {/* Dark gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
 
-            {/* Floating particles */}
-            <FloatingParticles />
-
             {/* Overlay content */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              className="absolute inset-0 flex flex-col justify-between p-12 text-white z-10"
-            >
+            <div className="absolute inset-0 flex flex-col justify-between p-12 text-white z-10">
               <Link
                 to="/"
                 className="flex items-center gap-2 text-white/80 hover:text-white transition-colors w-fit"
@@ -250,7 +149,13 @@ export default function AuthPage() {
                 <span className="text-sm font-medium">Back to Home</span>
               </Link>
 
-              <div className="space-y-4 max-w-lg">
+              <motion.div
+                key={`copy-${displayMode}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.15 }}
+                className="space-y-4 max-w-lg"
+              >
                 <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20">
                   <BookOpen className="h-7 w-7 text-white" />
                 </div>
@@ -260,7 +165,7 @@ export default function AuthPage() {
                 <p className="text-lg text-white/75 leading-relaxed">
                   {AUTH_COPY[displayMode].sub}
                 </p>
-              </div>
+              </motion.div>
 
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/10">
@@ -268,46 +173,39 @@ export default function AuthPage() {
                 </div>
                 <span className="font-semibold text-lg tracking-wide">NexfordEdu</span>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         </AnimatePresence>
-      </motion.div>
+      </div>
 
       {/* ── Form Panel ──────────────────────────────────── */}
-      <motion.div
-        className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12 overflow-y-auto relative z-10"
-        animate={{
-          opacity: formVisible ? 1 : 0,
-          x: formVisible ? 0 : (displayMode === 'register' ? 60 : -60),
-        }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      >
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12 overflow-y-auto relative z-10">
         <div className="w-full max-w-md">
           <AnimatePresence mode="wait">
             {displayMode === 'login' ? (
               <motion.div
                 key="login-form"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
               >
                 <LoginForm onSwitch={() => handleSwitch('register')} />
               </motion.div>
             ) : (
               <motion.div
                 key="register-form"
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
               >
                 <RegisterForm onSwitch={() => handleSwitch('login')} />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
