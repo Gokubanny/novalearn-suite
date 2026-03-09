@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Home, BookOpen, Calendar, FileText, Trophy, MessageSquare,
-  Search, Users, Loader2, Plus
+  Search, Users, Loader2, Plus, FileText, MessageSquare, BookOpen
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,15 +14,9 @@ import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CourseDiscussions } from '@/components/course/CourseDiscussions';
 import { CourseMaterials } from '@/components/course/CourseMaterials';
 import { useToast } from '@/hooks/use-toast';
+import { studentNavItems } from '@/constants/studentNav';
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard/student', icon: Home },
-  { name: 'My Courses', href: '/dashboard/student/courses', icon: BookOpen },
-  { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
-  { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
-  { name: 'Grades', href: '/dashboard/student/grades', icon: Trophy },
-  { name: 'Messages', href: '/dashboard/student/messages', icon: MessageSquare },
-];
+const navItems = studentNavItems;
 
 interface CourseWithDetails {
   id: string;
