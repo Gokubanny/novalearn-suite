@@ -28,6 +28,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 // Auth pages
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
+const PendingApprovalPage = lazy(() => import("./pages/auth/PendingApprovalPage"));
 
 // Dashboard pages
 const StudentDashboard = lazy(() => import("./pages/dashboard/StudentDashboard"));
