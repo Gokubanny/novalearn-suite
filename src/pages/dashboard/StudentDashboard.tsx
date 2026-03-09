@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Clock, Loader2
+  Clock, Loader2, BookOpen, FileText, CheckCircle, Trophy, Calendar, Brain
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';

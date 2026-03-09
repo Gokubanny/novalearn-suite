@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, TrendingUp, Loader2 } from 'lucide-react';
+import { Download, TrendingUp, Loader2, BookOpen, Trophy } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
