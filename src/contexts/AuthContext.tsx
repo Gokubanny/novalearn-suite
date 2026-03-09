@@ -18,6 +18,7 @@ export interface UserProfile {
   institutionId?: string;
   matricNumber?: string;
   staffId?: string;
+  approvalStatus: string;
   createdAt: string;
 }
 
