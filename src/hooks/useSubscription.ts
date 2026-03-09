@@ -87,12 +87,12 @@ export function useSubscription() {
     fetch();
   }, [user?.institutionId]);
 
+  const config = PLAN_CONFIGS[plan] ?? PLAN_CONFIGS.basic;
+
   const canAccess = useCallback(
-    (feature: GatedFeature) => PLAN_CONFIGS[plan].features.includes(feature),
-    [plan],
+    (feature: GatedFeature) => config.features.includes(feature),
+    [config],
   );
 
-  const limits = PLAN_CONFIGS[plan];
-
-  return { plan, isLoading, canAccess, limits };
+  return { plan, isLoading, canAccess, limits: config };
 }
