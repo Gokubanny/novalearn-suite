@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, BookOpen, Calendar, FileText, Trophy, CheckCircle, Brain, User, Clock, MapPin, Loader2 } from 'lucide-react';
+import { Clock, MapPin, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,17 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
+import { studentNavItems } from '@/constants/studentNav';
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard/student', icon: Home },
-  { name: 'My Courses', href: '/dashboard/student/courses', icon: BookOpen },
-  { name: 'Attendance', href: '/dashboard/student/attendance', icon: CheckCircle },
-  { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
-  { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
-  { name: 'Results', href: '/dashboard/student/results', icon: Trophy },
-  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain },
-  { name: 'Profile', href: '/dashboard/student/profile', icon: User },
-];
+const navItems = studentNavItems;
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

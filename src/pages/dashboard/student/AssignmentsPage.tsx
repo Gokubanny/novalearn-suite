@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Home, BookOpen, Calendar, FileText, Trophy, MessageSquare,
-  Clock, CheckCircle, AlertCircle, Upload, Loader2
+  Clock, CheckCircle, AlertCircle, Upload, Loader2, FileText
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,15 +13,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { useToast } from '@/hooks/use-toast';
+import { studentNavItems } from '@/constants/studentNav';
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard/student', icon: Home },
-  { name: 'My Courses', href: '/dashboard/student/courses', icon: BookOpen },
-  { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
-  { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
-  { name: 'Grades', href: '/dashboard/student/grades', icon: Trophy },
-  { name: 'Messages', href: '/dashboard/student/messages', icon: MessageSquare },
-];
+const navItems = studentNavItems;
 
 interface AssignmentWithSubmission {
   id: string;

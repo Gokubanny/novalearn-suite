@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  Home, BookOpen, Calendar, FileText, Trophy, CheckCircle,
-  Clock, Brain, User, Loader2
+  Clock, Loader2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -12,17 +11,9 @@ import { EmptyState } from '@/components/dashboard/EmptyState';
 import { StatsCardSkeleton, CardGridSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { studentNavItems } from '@/constants/studentNav';
 
-const navItems = [
-  { name: 'Dashboard', href: '/dashboard/student', icon: Home },
-  { name: 'My Courses', href: '/dashboard/student/courses', icon: BookOpen },
-  { name: 'Attendance', href: '/dashboard/student/attendance', icon: CheckCircle },
-  { name: 'Schedule', href: '/dashboard/student/schedule', icon: Calendar },
-  { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
-  { name: 'Results', href: '/dashboard/student/results', icon: Trophy },
-  { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain, requiredPlan: 'pro' as const },
-  { name: 'Profile', href: '/dashboard/student/profile', icon: User },
-];
+const navItems = studentNavItems;
 
 interface DashboardData {
   enrolledCount: number;
