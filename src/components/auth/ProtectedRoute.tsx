@@ -32,6 +32,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Redirect pending/rejected users to approval page
+  if (user.approvalStatus !== 'approved') {
+    return <Navigate to="/pending-approval" replace />;
+  }
+
   if (!allowedRoles.includes(user.role)) {
     const dashboardPaths: Record<UserRole, string> = {
       student: '/dashboard/student',

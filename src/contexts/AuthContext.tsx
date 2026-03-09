@@ -81,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         institutionId: profile.institution_id || undefined,
         matricNumber: profile.matric_number || undefined,
         staffId: profile.staff_id || undefined,
+        approvalStatus: (profile as any).approval_status || 'approved',
         createdAt: profile.created_at || new Date().toISOString(),
       };
     } catch {
