@@ -166,6 +166,8 @@ export default function LecturerProfilePage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <AccentColorPicker currentColor={accentColor} onColorChange={updateAccentColor} defaultColor={defaultColor} />
       </div>
     </DashboardLayout>
   );
