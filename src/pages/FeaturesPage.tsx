@@ -283,7 +283,7 @@ export default function FeaturesPage() {
                 "AI Learning Assistant",
                 "Biometric Attendance",
                 "Online Classes",
-                "Exam Proctoring",
+                // "Exam Proctoring",
                 "Real-time Analytics",
                 "Multi-Role Access",
                 "Course Management",

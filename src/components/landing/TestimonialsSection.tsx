@@ -38,7 +38,7 @@ const testimonials = [
   },
   {
     quote:
-      "The exam proctoring feature gives us confidence in our online assessments. Academic integrity is no longer a concern.",
+      "The biometric attendance feature gives us confidence in tracking student presence. Manual attendance errors are no longer a concern.",
     author: "Dr. Fatima Ibrahim",
     role: "Registrar",
     institution: "Ahmadu Bello University",
