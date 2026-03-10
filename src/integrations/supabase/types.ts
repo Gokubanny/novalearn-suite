@@ -481,6 +481,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          accent_color: string | null
           approval_status: string
           avatar_url: string | null
           bio: string | null
@@ -498,6 +499,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          accent_color?: string | null
           approval_status?: string
           avatar_url?: string | null
           bio?: string | null
@@ -515,6 +517,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          accent_color?: string | null
           approval_status?: string
           avatar_url?: string | null
           bio?: string | null
