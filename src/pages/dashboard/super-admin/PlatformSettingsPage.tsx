@@ -2,6 +2,8 @@ import {
   Home, Building2, Users, DollarSign, FileText, Newspaper, Tag, Settings,
   Globe, Shield, Bell, Palette, Server, Save, Mail
 } from 'lucide-react';
+import { useAccentColor } from '@/hooks/useAccentColor';
+import { AccentColorPicker } from '@/components/dashboard/AccentColorPicker';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
