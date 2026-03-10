@@ -26,6 +26,8 @@ const navItems = [
 ];
 
 export default function PlatformSettingsPage() {
+  const { accentColor, updateAccentColor, defaultColor } = useAccentColor();
+
   return (
     <DashboardLayout navItems={navItems} roleLabel="Super Admin" accentColor="hsl(0, 84%, 60%)">
       <div className="space-y-6">
