@@ -13,6 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { studentNavItems } from '@/constants/studentNav';
+import { useAccentColor } from '@/hooks/useAccentColor';
+import { AccentColorPicker } from '@/components/dashboard/AccentColorPicker';
 
 const navItems = studentNavItems;
 
