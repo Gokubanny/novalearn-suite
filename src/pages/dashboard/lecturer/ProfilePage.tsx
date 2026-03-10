@@ -27,6 +27,7 @@ const navItems = [
 
 export default function LecturerProfilePage() {
   const { user } = useAuth();
+  const { accentColor, updateAccentColor, defaultColor } = useAccentColor();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
