@@ -61,7 +61,7 @@ const plans: Plan[] = [
       { name: "Face recognition attendance", included: true },
       { name: "Online class integration", included: true },
       { name: "Priority support", included: true },
-      { name: "Exam proctoring", included: false },
+      // { name: "Exam proctoring", included: false },
       { name: "Plagiarism detection", included: false },
       { name: "Custom branding", included: false },
       { name: "Dedicated account manager", included: false },
