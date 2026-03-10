@@ -27,6 +27,7 @@ const navItems = [
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
+  const { accentColor, updateAccentColor, defaultColor } = useAccentColor();
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Admin Portal" accentColor="hsl(262, 83%, 58%)">
