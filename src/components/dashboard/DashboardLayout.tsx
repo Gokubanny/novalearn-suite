@@ -25,6 +25,7 @@ import {
 import { useSubscription, type SubscriptionPlan } from '@/hooks/useSubscription';
 import { Badge } from '@/components/ui/badge';
 import { getPlanLabel } from '@/hooks/useSubscription';
+import { useAccentColor } from '@/hooks/useAccentColor';
 
 export interface NavItem {
   name: string;
@@ -37,10 +38,12 @@ interface DashboardLayoutProps {
   children: ReactNode;
   navItems: NavItem[];
   roleLabel: string;
-  accentColor: string;
+  accentColor?: string;
 }
 
-export function DashboardLayout({ children, navItems, roleLabel, accentColor }: DashboardLayoutProps) {
+export function DashboardLayout({ children, navItems, roleLabel, accentColor: propAccentColor }: DashboardLayoutProps) {
+  const { accentColor: userAccentColor } = useAccentColor();
+  const accentColor = userAccentColor || propAccentColor || 'hsl(221, 83%, 53%)';
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
   const { plan, canAccess } = useSubscription();
