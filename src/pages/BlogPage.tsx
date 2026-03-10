@@ -108,10 +108,10 @@ const blogPosts: BlogPost[] = [
   //   author: {
   //     name: "Dr. Funke Adebayo",
   //     avatar: images.testimonials.person2,
-    },
-    date: "Jan 10, 2026",
-    readTime: "7 min read",
-  },
+  //   },
+  //   date: "Jan 10, 2026",
+  //   readTime: "7 min read",
+  // },
   {
     id: "6",
     title: "How Covenant University Digitized Their Academic Operations",
