@@ -80,7 +80,7 @@ const plans = [
       { name: "Unlimited students", included: true },
       { name: "Full AI capabilities", included: true },
       { name: "Biometric attendance", included: true },
-      { name: "Exam proctoring & monitoring", included: true },
+      // { name: "Exam proctoring & monitoring", included: true },
       { name: "Plagiarism detection", included: true },
       { name: "Custom branding", included: true },
       { name: "API access", included: true },

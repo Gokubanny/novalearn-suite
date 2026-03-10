@@ -60,7 +60,7 @@ export default function PlatformSettingsPage() {
                 {[
                   { label: 'AI Features', desc: 'Enable AI-powered features across the platform' },
                   { label: 'Facial Recognition', desc: 'Enable facial recognition for attendance' },
-                  { label: 'Exam Proctoring', desc: 'Enable AI exam monitoring' },
+                  // { label: 'Exam Proctoring', desc: 'Enable AI exam monitoring' },
                   { label: 'Public Registration', desc: 'Allow new institutions to register publicly' },
                 ].map((flag) => (
                   <div key={flag.label} className="flex items-center justify-between py-2">
