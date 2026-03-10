@@ -12,6 +12,8 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAccentColor } from '@/hooks/useAccentColor';
+import { AccentColorPicker } from '@/components/dashboard/AccentColorPicker';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: Home },
@@ -25,6 +27,7 @@ const navItems = [
 
 export default function AdminSettingsPage() {
   const { user } = useAuth();
+  const { accentColor, updateAccentColor, defaultColor } = useAccentColor();
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Admin Portal" accentColor="hsl(262, 83%, 58%)">
@@ -125,6 +128,8 @@ export default function AdminSettingsPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <AccentColorPicker currentColor={accentColor} onColorChange={updateAccentColor} defaultColor={defaultColor} />
       </div>
     </DashboardLayout>
   );

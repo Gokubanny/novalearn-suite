@@ -13,11 +13,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { studentNavItems } from '@/constants/studentNav';
+import { useAccentColor } from '@/hooks/useAccentColor';
+import { AccentColorPicker } from '@/components/dashboard/AccentColorPicker';
 
 const navItems = studentNavItems;
 
 export default function StudentProfilePage() {
   const { user } = useAuth();
+  const { accentColor, updateAccentColor, defaultColor } = useAccentColor();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -164,6 +167,8 @@ export default function StudentProfilePage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <AccentColorPicker currentColor={accentColor} onColorChange={updateAccentColor} defaultColor={defaultColor} />
       </div>
     </DashboardLayout>
   );
