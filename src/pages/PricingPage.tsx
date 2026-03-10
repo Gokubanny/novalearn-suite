@@ -42,7 +42,7 @@ const plans = [
       { name: "Email support", included: true },
       { name: "AI Learning Assistant", included: false },
       { name: "Biometric attendance", included: false },
-      { name: "Exam proctoring", included: false },
+      // { name: "Exam proctoring", included: false },
       { name: "Plagiarism detection", included: false },
       { name: "Custom branding", included: false },
     ],
