@@ -128,6 +128,8 @@ export default function AdminSettingsPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <AccentColorPicker currentColor={accentColor} onColorChange={updateAccentColor} defaultColor={defaultColor} />
       </div>
     </DashboardLayout>
   );
