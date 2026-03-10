@@ -20,6 +20,7 @@ const navItems = studentNavItems;
 
 export default function StudentProfilePage() {
   const { user } = useAuth();
+  const { accentColor, updateAccentColor, defaultColor } = useAccentColor();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
