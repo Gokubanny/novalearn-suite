@@ -81,7 +81,7 @@ export function HeroSection() {
             <FadeIn delay={0.2}>
               <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto lg:mx-0 text-balance">
                 An enterprise-grade platform with AI-powered learning, biometric attendance, 
-                exam proctoring, and comprehensive academic management for modern institutions.
+                and comprehensive academic management for modern institutions.
               </p>
             </FadeIn>
 

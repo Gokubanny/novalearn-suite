@@ -83,7 +83,7 @@ export const featureImages: Record<string, string> = {
   "AI Learning Assistant": images.features.ai,
   "Biometric Attendance": images.features.biometric,
   "Online Classes": images.features.video,
-  "Exam Proctoring": images.features.exam,
+  // "Exam Proctoring": images.features.exam,
   "Real-time Analytics": images.features.analytics,
   "Multi-Role Access": images.features.team,
   "Course Management": images.features.books,

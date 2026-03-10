@@ -99,19 +99,19 @@ const blogPosts: BlogPost[] = [
     date: "Jan 15, 2026",
     readTime: "3 min read",
   },
-  {
-    id: "5",
-    title: "Best Practices for Online Exam Proctoring",
-    excerpt: "A comprehensive guide to setting up and managing secure online examinations with proctoring features.",
-    image: images.features.exam,
-    category: "Tips & Guides",
-    author: {
-      name: "Dr. Funke Adebayo",
-      avatar: images.testimonials.person2,
-    },
-    date: "Jan 10, 2026",
-    readTime: "7 min read",
-  },
+  // {
+  //   id: "5",
+  //   title: "Best Practices for Online Exam Proctoring",
+  //   excerpt: "A comprehensive guide to setting up and managing secure online examinations with proctoring features.",
+  //   image: images.features.exam,
+  //   category: "Tips & Guides",
+  //   author: {
+  //     name: "Dr. Funke Adebayo",
+  //     avatar: images.testimonials.person2,
+  //   },
+  //   date: "Jan 10, 2026",
+  //   readTime: "7 min read",
+  // },
   {
     id: "6",
     title: "How Covenant University Digitized Their Academic Operations",

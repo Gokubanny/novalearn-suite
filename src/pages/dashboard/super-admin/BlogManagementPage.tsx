@@ -24,7 +24,7 @@ const navItems = [
 
 const blogPosts = [
   { id: 1, title: 'How AI is Transforming African Education', status: 'published', author: 'NexfordEdu Team', date: 'Mar 1, 2024', views: 1250, category: 'AI & Technology' },
-  { id: 2, title: 'Best Practices for Online Exam Proctoring', status: 'published', author: 'Dr. Adebayo', date: 'Feb 25, 2024', views: 890, category: 'Assessment' },
+  // { id: 2, title: 'Best Practices for Online Exam Proctoring', status: 'published', author: 'Dr. Adebayo', date: 'Feb 25, 2024', views: 890, category: 'Assessment' },
   { id: 3, title: '2024 EdTech Trends in Nigeria', status: 'draft', author: 'NexfordEdu Team', date: 'Feb 20, 2024', views: 0, category: 'Industry' },
   { id: 4, title: 'Student Engagement Strategies', status: 'published', author: 'Prof. Okonkwo', date: 'Feb 15, 2024', views: 2100, category: 'Teaching' },
   { id: 5, title: 'Data Privacy in Educational Platforms', status: 'review', author: 'Legal Team', date: 'Feb 10, 2024', views: 0, category: 'Security' },
