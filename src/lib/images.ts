@@ -4,7 +4,7 @@
 export const images = {
   // Hero & Campus
   hero: {
-    campus: "https://images.unsplash.com/photo-1562774053-701939374585?w=1920&q=80",
+    campus: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=1920&q=80"",
     students: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1920&q=80",
     library: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=1920&q=80",
     graduation: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&q=80",
