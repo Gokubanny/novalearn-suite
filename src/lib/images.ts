@@ -4,10 +4,10 @@
 export const images = {
   // Hero & Campus
   hero: {
-    campus: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=1920&q=80"",
+    campus: "https://res.cloudinary.com/dxpquojo2/image/upload/q_auto/f_auto/v1775738118/photo-1562774053-701939374585_hjnqlg.jpg",
     students: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1920&q=80",
-    library: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=1920&q=80",
-    graduation: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&q=80",
+    library: "https://res.cloudinary.com/dxpquojo2/image/upload/v1775738158/photo-1481627834876-b7833e8f5570_h4ikpu.jpg",
+    graduation: "https://res.cloudinary.com/dxpquojo2/image/upload/v1775738736/Short-Term_Achievement_qnitvc.jpg",
   },
 
   // Classroom & Learning
