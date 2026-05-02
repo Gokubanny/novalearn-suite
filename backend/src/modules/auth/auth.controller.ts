@@ -11,11 +11,13 @@ import { AppError } from '../../middleware/error.middleware';
 import { sendEmail, emailTemplates } from '../../utils/email';
 import { generateToken, hashToken, getCurrentSession } from '../../utils/helpers';
 
-const signToken = (id: string, role: UserRole, school?: string, email?: string) => {
+const signToken = (id: string, role: UserRole, school?: string, email?: string): string => {
+  const secret = process.env.JWT_SECRET as string;
+  const expiresIn = (process.env.JWT_EXPIRES_IN || '7d') as jwt.SignOptions['expiresIn'];
   return jwt.sign(
     { id, role, school, email },
-    process.env.JWT_SECRET as string,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    secret,
+    { expiresIn } as jwt.SignOptions
   );
 };
 
