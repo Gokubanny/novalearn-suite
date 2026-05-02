@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import type { User, Session } from '@supabase/supabase-js';
+import { authService } from '@/services/auth.service';
 
 export type UserRole = 'student' | 'lecturer' | 'admin' | 'super_admin';
 
@@ -24,7 +23,7 @@ export interface UserProfile {
 
 interface AuthContextType {
   user: UserProfile | null;
-  session: Session | null;
+  session: null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ success: boolean; error?: string }>;
@@ -41,148 +40,124 @@ interface RegisterData {
   phone?: string;
   department?: string;
   institution?: string;
+  school?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const STORAGE_TOKEN = 'nexford_token';
+const STORAGE_USER = 'nexford_user';
+
+// Backend uses 'school_admin'; the existing frontend uses 'admin' everywhere.
+function normalizeRole(role: string | undefined): UserRole {
+  if (role === 'school_admin') return 'admin';
+  if (role === 'super_admin' || role === 'admin' || role === 'lecturer' || role === 'student') {
+    return role;
+  }
+  return 'student';
+}
+
+function mapServerUser(raw: any): UserProfile {
+  return {
+    id: raw.id ?? raw._id ?? '',
+    userId: raw.id ?? raw._id ?? '',
+    email: raw.email ?? '',
+    role: normalizeRole(raw.role),
+    firstName: raw.firstName ?? raw.first_name ?? '',
+    lastName: raw.lastName ?? raw.last_name ?? '',
+    phone: raw.phone,
+    avatar: raw.profileImage ?? raw.avatar_url,
+    department: raw.department,
+    institution: raw.school?.name ?? raw.school,
+    institutionId: typeof raw.school === 'string' ? raw.school : raw.school?.id ?? raw.school?._id,
+    matricNumber: raw.matricNumber ?? raw.matric_number,
+    staffId: raw.staffId ?? raw.staff_id,
+    approvalStatus: raw.approvalStatus ?? raw.status ?? 'approved',
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserProfile = async (authUser: User): Promise<UserProfile | null> => {
-    try {
-      // Fetch profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', authUser.id)
-        .single();
-
-      // Fetch role
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', authUser.id)
-        .single();
-
-      if (!profile) return null;
-
-      return {
-        id: profile.id,
-        userId: authUser.id,
-        email: profile.email,
-        role: (roleData?.role as UserRole) || 'student',
-        firstName: profile.first_name,
-        lastName: profile.last_name,
-        phone: profile.phone || undefined,
-        avatar: profile.avatar_url || undefined,
-        department: profile.department || undefined,
-        institutionId: profile.institution_id || undefined,
-        matricNumber: profile.matric_number || undefined,
-        staffId: profile.staff_id || undefined,
-        approvalStatus: (profile as any).approval_status || 'approved',
-        createdAt: profile.created_at || new Date().toISOString(),
-      };
-    } catch {
-      return null;
-    }
-  };
-
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        
-        if (newSession?.user) {
-          // Use setTimeout to avoid Supabase deadlock
-          setTimeout(async () => {
-            const profile = await fetchUserProfile(newSession.user);
-            setUser(profile);
-            setIsLoading(false);
-          }, 0);
-        } else {
-          setUser(null);
-          setIsLoading(false);
-        }
+    const token = localStorage.getItem(STORAGE_TOKEN);
+    const userRaw = localStorage.getItem(STORAGE_USER);
+    if (token && userRaw) {
+      try {
+        setUser(mapServerUser(JSON.parse(userRaw)));
+      } catch {
+        // ignore
       }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      if (existingSession?.user) {
-        fetchUserProfile(existingSession.user).then((profile) => {
-          setUser(profile);
-          setIsLoading(false);
-        });
-      } else {
-        setIsLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    }
+    setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) {
+    try {
+      const response = await authService.login(email, password);
+      const payload: any = response.data;
+      const token = payload.token ?? payload.data?.token;
+      const rawUser = payload.data?.user ?? payload.user ?? payload.data;
+      if (!token || !rawUser) {
+        setIsLoading(false);
+        return { success: false, error: 'Invalid response from server' };
+      }
+      localStorage.setItem(STORAGE_TOKEN, token);
+      localStorage.setItem(STORAGE_USER, JSON.stringify(rawUser));
+      setUser(mapServerUser(rawUser));
       setIsLoading(false);
-      return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err?.message ?? 'Login failed' };
     }
-    
-    return { success: true };
   };
 
-  const register = async (data: RegisterData): Promise<{ success: boolean; error?: string }> => {
+  const register = async (data: RegisterData) => {
     setIsLoading(true);
-    
-    const { error } = await supabase.auth.signUp({
-      email: data.email,
-      password: data.password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: {
-          first_name: data.firstName,
-          last_name: data.lastName,
-          role: data.role,
-          phone: data.phone,
-          department: data.department,
-        },
-      },
-    });
-
-    if (error) {
+    try {
+      const payload = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: data.password,
+        phone: data.phone,
+        department: data.department,
+        school: data.school ?? data.institution,
+      };
+      if (data.role === 'lecturer') {
+        await authService.registerLecturer(payload);
+      } else {
+        await authService.registerStudent(payload);
+      }
       setIsLoading(false);
-      return { success: false, error: error.message };
+      return { success: true };
+    } catch (err: any) {
+      setIsLoading(false);
+      return { success: false, error: err?.message ?? 'Registration failed' };
     }
-
-    return { success: true };
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem(STORAGE_TOKEN);
+    localStorage.removeItem(STORAGE_USER);
     setUser(null);
-    setSession(null);
   };
 
-  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    if (error) {
-      return { success: false, error: error.message };
+  const resetPassword = async (email: string) => {
+    try {
+      await authService.forgotPassword(email);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message ?? 'Could not send reset email' };
     }
-
-    return { success: true };
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, login, register, logout, resetPassword }}>
+    <AuthContext.Provider value={{ user, session: null, isLoading, login, register, logout, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );
