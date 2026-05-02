@@ -14,10 +14,8 @@
     "declarationMap": true,
     "sourceMap": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "types": ["node"]
+    "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*", "../index.ts"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
-
