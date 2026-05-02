@@ -52,7 +52,7 @@ export default function SubscriptionPage() {
   const storagePct = limits.storageGB === Infinity ? 5 : Math.round((storageUsed / limits.storageGB) * 100);
 
   const handleSubscribe = async (planKey: string) => {
-    if (!user?.institution_id) {
+    if (!user?.institutionId) {
       toast.error('No institution linked to your account');
       return;
     }
@@ -74,7 +74,7 @@ export default function SubscriptionPage() {
   };
 
   const handleManageBilling = async () => {
-    if (!user?.institution_id) return;
+    if (!user?.institutionId) return;
     setLoadingPortal(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-portal-session', {
