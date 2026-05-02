@@ -277,6 +277,9 @@ export interface AuthRequest extends Request {
     school?: string;
     email: string;
   };
+  params: Record<string, string>;
+  query: Record<string, string | string[] | undefined>;
+  body: any;
 }
 
 // ── RESPONSE TYPES ─────────────────────────────────────────────────────────
