@@ -11,8 +11,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('nexford_token');
-  if (token) {
-    config.headers = config.headers ?? {};
+  if (token && config.headers) {
     (config.headers as any).Authorization = `Bearer ${token}`;
   }
   return config;
