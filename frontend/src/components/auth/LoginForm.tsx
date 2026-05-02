@@ -43,7 +43,21 @@ export function LoginForm({ roleLabel, redirectPath }: LoginFormProps) {
         title: 'Welcome back!',
         description: `You have successfully logged in.`,
       });
-      navigate(redirectPath);
+      // Redirect by role; the AuthContext has just set the user.
+      const userRaw = localStorage.getItem('nexford_user');
+      let role: string | undefined;
+      try {
+        role = userRaw ? JSON.parse(userRaw).role : undefined;
+      } catch {
+        role = undefined;
+      }
+      const dest =
+        role === 'super_admin' ? '/dashboard/super-admin'
+        : role === 'school_admin' || role === 'admin' ? '/dashboard/admin'
+        : role === 'lecturer' ? '/dashboard/lecturer'
+        : role === 'student' ? '/dashboard/student'
+        : redirectPath;
+      navigate(dest);
     } else {
       toast({
         title: 'Login failed',
