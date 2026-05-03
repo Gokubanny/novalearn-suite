@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ROLE_DEFAULTS: Record<string, string> = {
@@ -24,42 +23,25 @@ const ACCENT_PRESETS = [
 
 export { ACCENT_PRESETS };
 
+const STORAGE_KEY = 'nexford_accent_color';
+
 export function useAccentColor() {
   const { user } = useAuth();
   const defaultColor = ROLE_DEFAULTS[user?.role || 'student'] || ROLE_DEFAULTS.student;
-  const [accentColor, setAccentColor] = useState(defaultColor);
-  const [isLoading, setIsLoading] = useState(true);
+  const [accentColor, setAccentColor] = useState(() => {
+    return localStorage.getItem(STORAGE_KEY) || defaultColor;
+  });
+  const [isLoading] = useState(false);
 
   useEffect(() => {
-    if (!user) { setIsLoading(false); return; }
-
-    const fetchColor = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('accent_color')
-        .eq('user_id', user.userId)
-        .single();
-
-      if (data?.accent_color) {
-        setAccentColor(data.accent_color);
-      } else {
-        setAccentColor(defaultColor);
-      }
-      setIsLoading(false);
-    };
-
-    fetchColor();
+    const stored = localStorage.getItem(STORAGE_KEY);
+    setAccentColor(stored || defaultColor);
   }, [user?.userId, defaultColor]);
 
   const updateAccentColor = useCallback(async (color: string) => {
-    if (!user) return;
     setAccentColor(color);
-
-    await supabase
-      .from('profiles')
-      .update({ accent_color: color } as any)
-      .eq('user_id', user.userId);
-  }, [user?.userId]);
+    localStorage.setItem(STORAGE_KEY, color);
+  }, []);
 
   return { accentColor, updateAccentColor, isLoading, defaultColor };
 }

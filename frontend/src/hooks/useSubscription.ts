@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { schoolService } from '@/services/school.service';
 
 export type SubscriptionPlan = 'basic' | 'pro' | 'enterprise';
 
@@ -21,32 +21,15 @@ interface PlanConfig {
 }
 
 const PLAN_CONFIGS: Record<SubscriptionPlan, PlanConfig> = {
-  basic: {
-    maxStudents: 500,
-    maxLecturers: 10,
-    storageGB: 5,
-    features: [],
-    label: 'Basic',
-  },
+  basic: { maxStudents: 500, maxLecturers: 10, storageGB: 5, features: [], label: 'Basic' },
   pro: {
-    maxStudents: 2000,
-    maxLecturers: 50,
-    storageGB: 50,
+    maxStudents: 2000, maxLecturers: 50, storageGB: 50,
     features: ['ai_assistant', 'advanced_analytics', 'full_notifications', 'priority_support'],
     label: 'Pro',
   },
   enterprise: {
-    maxStudents: Infinity,
-    maxLecturers: Infinity,
-    storageGB: Infinity,
-    features: [
-      'ai_assistant',
-      'advanced_analytics',
-      'facial_recognition',
-      'full_notifications',
-      'custom_integrations',
-      'priority_support',
-    ],
+    maxStudents: Infinity, maxLecturers: Infinity, storageGB: Infinity,
+    features: ['ai_assistant','advanced_analytics','facial_recognition','full_notifications','custom_integrations','priority_support'],
     label: 'Enterprise',
   },
 };
@@ -66,33 +49,25 @@ export function useSubscription() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.institutionId) {
+    if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) {
       setIsLoading(false);
       return;
     }
-
-    const fetch = async () => {
-      const { data } = await supabase
-        .from('institutions')
-        .select('subscription_plan')
-        .eq('id', user.institutionId!)
-        .single();
-
-      if (data?.subscription_plan) {
-        setPlan(data.subscription_plan as SubscriptionPlan);
-      }
-      setIsLoading(false);
-    };
-
-    fetch();
-  }, [user?.institutionId]);
+    let active = true;
+    schoolService.getProfile()
+      .then((res) => {
+        const p = res.data?.data?.subscription?.plan ?? res.data?.data?.subscriptionPlan;
+        if (active && p && PLAN_CONFIGS[p as SubscriptionPlan]) setPlan(p as SubscriptionPlan);
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [user]);
 
   const config = PLAN_CONFIGS[plan] ?? PLAN_CONFIGS.basic;
-
   const canAccess = useCallback(
     (feature: GatedFeature) => config.features.includes(feature),
     [config],
   );
-
   return { plan, isLoading, canAccess, limits: config };
 }
