@@ -7,7 +7,7 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { courseService } from '@/services/course.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CourseDiscussions } from '@/components/course/CourseDiscussions';
@@ -50,40 +50,23 @@ export default function LecturerCoursesPage() {
     if (!user) return;
     setLoading(true);
 
-    const { data: coursesData } = await supabase
-      .from('courses')
-      .select('*')
-      .eq('lecturer_id', user.id);
-
-    if (!coursesData) {
+    try {
+      const res = await courseService.getLecturerCourses();
+      const list = (res.data?.data ?? []).map((c: any) => ({
+        id: c._id ?? c.id,
+        title: c.title,
+        code: c.code,
+        is_active: c.isActive ?? true,
+        credit_units: c.creditUnits ?? null,
+        semester: c.semester ?? null,
+        enrollment_count: c.enrolledStudents?.length ?? c.enrollmentCount ?? 0,
+        assignments_count: c.assignmentsCount ?? 0,
+        materials_count: c.materialsCount ?? 0,
+      }));
+      setCourses(list);
+    } catch {
       setCourses([]);
-      setLoading(false);
-      return;
     }
-
-    const enriched = await Promise.all(
-      coursesData.map(async (course) => {
-        const [{ count: enrollCount }, { count: assignCount }, { count: matCount }] = await Promise.all([
-          supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', course.id),
-          supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('course_id', course.id),
-          supabase.from('course_materials').select('*', { count: 'exact', head: true }).eq('course_id', course.id),
-        ]);
-
-        return {
-          id: course.id,
-          title: course.title,
-          code: course.code,
-          is_active: course.is_active ?? true,
-          credit_units: course.credit_units,
-          semester: course.semester,
-          enrollment_count: enrollCount ?? 0,
-          assignments_count: assignCount ?? 0,
-          materials_count: matCount ?? 0,
-        };
-      })
-    );
-
-    setCourses(enriched);
     setLoading(false);
   };
 
