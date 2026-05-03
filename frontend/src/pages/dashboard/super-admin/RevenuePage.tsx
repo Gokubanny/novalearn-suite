@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
+import { superAdminService } from '@/services/superadmin.service';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/super-admin', icon: Home },
@@ -33,8 +33,21 @@ export default function RevenuePage() {
 
   useEffect(() => {
     async function fetch() {
-      const { data } = await supabase.from('institutions').select('*');
-      setInstitutions(data || []);
+      try {
+        const res = await superAdminService.getAllSchools({ limit: 200 });
+        const list = (res.data?.data ?? []).map((s: any) => ({
+          id: s._id ?? s.id,
+          name: s.name,
+          code: s.code,
+          city: s.city ?? null,
+          is_active: s.isActive ?? true,
+          subscription_status: s.subscription?.status ?? null,
+          subscription_plan: s.subscription?.plan ?? 'basic',
+        }));
+        setInstitutions(list);
+      } catch {
+        setInstitutions([]);
+      }
       setLoading(false);
     }
     fetch();
