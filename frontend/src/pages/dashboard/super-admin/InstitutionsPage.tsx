@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { supabase } from '@/integrations/supabase/client';
+import { superAdminService } from '@/services/superadmin.service';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 
 const navItems = [
@@ -44,15 +44,23 @@ export default function SuperAdminInstitutionsPage() {
 
   async function fetchInstitutions() {
     setLoading(true);
-    const { data } = await supabase.from('institutions').select('*').order('created_at', { ascending: false });
-    if (!data) { setLoading(false); return; }
-
-    // Count profiles per institution
-    const { data: profiles } = await supabase.from('profiles').select('institution_id');
-    const countMap = new Map<string, number>();
-    profiles?.forEach(p => { if (p.institution_id) countMap.set(p.institution_id, (countMap.get(p.institution_id) || 0) + 1); });
-
-    setInstitutions(data.map(i => ({ ...i, profileCount: countMap.get(i.id) || 0 })));
+    try {
+      const res = await superAdminService.getAllSchools({ limit: 100 });
+      const list = (res.data?.data ?? []).map((s: any) => ({
+        id: s._id ?? s.id,
+        name: s.name,
+        code: s.code,
+        is_active: s.isActive ?? true,
+        subscription_plan: s.subscription?.plan ?? null,
+        city: s.city ?? null,
+        state: s.state ?? null,
+        created_at: s.createdAt ?? null,
+        profileCount: (s.studentCount ?? 0) + (s.lecturerCount ?? 0),
+      }));
+      setInstitutions(list);
+    } catch {
+      setInstitutions([]);
+    }
     setLoading(false);
   }
 

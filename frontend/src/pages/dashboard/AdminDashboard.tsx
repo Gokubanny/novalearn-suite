@@ -14,7 +14,7 @@ import { useSubscription, getPlanLabel } from '@/hooks/useSubscription';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { StatsCardSkeleton, TableRowSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { supabase } from '@/integrations/supabase/client';
+import { schoolService } from '@/services/school.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
@@ -52,32 +52,25 @@ export default function AdminDashboard() {
   async function fetchDashboard() {
     if (!user) return;
     setLoading(true);
-
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('institution_id')
-      .eq('user_id', user.userId)
-      .single();
-
-    if (!adminProfile?.institution_id) { setLoading(false); return; }
-
-    const instId = adminProfile.institution_id;
-
-    // Parallel queries
-    const [usersRes, coursesRes, deptsRes, pendingRes] = await Promise.all([
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('institution_id', instId),
-      supabase.from('courses').select('id', { count: 'exact', head: true }).eq('institution_id', instId).eq('is_active', true),
-      supabase.from('departments').select('id, name, code').eq('institution_id', instId),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('institution_id', instId).eq('approval_status', 'pending'),
-    ]);
-
-    setData({
-      totalUsers: usersRes.count || 0,
-      totalCourses: coursesRes.count || 0,
-      totalDepartments: (deptsRes.data || []).length,
-      pendingApprovals: pendingRes.count || 0,
-      departments: (deptsRes.data || []).slice(0, 5),
-    });
+    try {
+      const [statsRes, deptsRes] = await Promise.all([
+        schoolService.getStats(),
+        schoolService.getDepartments(),
+      ]);
+      const stats = statsRes.data?.data ?? {};
+      const depts = (deptsRes.data?.data ?? []).map((d: any) => ({
+        id: d._id ?? d.id, name: d.name, code: d.code,
+      }));
+      setData({
+        totalUsers: (stats.totalStudents ?? 0) + (stats.totalLecturers ?? 0),
+        totalCourses: stats.totalCourses ?? 0,
+        totalDepartments: stats.totalDepartments ?? depts.length,
+        pendingApprovals: (stats.pendingStudents ?? 0) + (stats.pendingLecturers ?? 0),
+        departments: depts.slice(0, 5),
+      });
+    } catch {
+      setData({ totalUsers: 0, totalCourses: 0, totalDepartments: 0, pendingApprovals: 0, departments: [] });
+    }
     setLoading(false);
   }
 

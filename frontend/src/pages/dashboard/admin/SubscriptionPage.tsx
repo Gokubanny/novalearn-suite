@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useSubscription, getPlanLabel } from '@/hooks/useSubscription';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { subscriptionService } from '@/services/subscription.service';
 import { toast } from 'sonner';
 
 const navItems = [
@@ -59,13 +59,10 @@ export default function SubscriptionPage() {
     setLoadingPlan(planKey);
     try {
       const priceId = stripePrices[planKey]?.[billingPeriod];
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: { priceId, institutionId: user?.institutionId },
-      });
-      if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
-      }
+      const res = await subscriptionService.createCheckout(priceId, planKey, billingPeriod);
+      const url = res.data?.url ?? res.data?.data?.url;
+      if (url) window.location.href = url;
+      else toast.error('Checkout URL not returned');
     } catch (err: any) {
       toast.error(err.message || 'Failed to start checkout');
     } finally {
@@ -77,13 +74,10 @@ export default function SubscriptionPage() {
     if (!user?.institutionId) return;
     setLoadingPortal(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-portal-session', {
-        body: { institutionId: user?.institutionId },
-      });
-      if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
-      }
+      const res = await subscriptionService.openPortal();
+      const url = res.data?.url ?? res.data?.data?.url;
+      if (url) window.location.href = url;
+      else toast.error('Billing portal URL not returned');
     } catch (err: any) {
       toast.error(err.message || 'Failed to open billing portal');
     } finally {

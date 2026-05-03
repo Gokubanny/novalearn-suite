@@ -7,7 +7,7 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { schoolService } from '@/services/school.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
@@ -33,54 +33,26 @@ export default function AttendanceAnalyticsPage() {
 
   async function fetchStats() {
     setLoading(true);
-    const { data: adminProfile } = await supabase.from('profiles').select('institution_id').eq('user_id', user!.id).single();
-    if (!adminProfile?.institution_id) { setLoading(false); return; }
-
-    // Get all courses in institution
-    const { data: courses } = await supabase.from('courses').select('id, department_id').eq('institution_id', adminProfile.institution_id);
-    const courseIds = courses?.map(c => c.id) || [];
-
-    if (courseIds.length === 0) { setLoading(false); return; }
-
-    // Get attendance records for these courses
-    const { data: records } = await supabase
-      .from('attendance')
-      .select('status, course_id')
-      .in('course_id', courseIds);
-
-    const total = records?.length || 0;
-    const present = records?.filter(r => r.status === 'present').length || 0;
-    setTotalAttendance(total);
-    setTotalPresent(present);
-
-    // Get departments
-    const { data: departments } = await supabase
-      .from('departments')
-      .select('id, name')
-      .eq('institution_id', adminProfile.institution_id);
-
-    const deptCourseMap = new Map<string, string[]>();
-    courses?.forEach(c => {
-      if (c.department_id) {
-        const arr = deptCourseMap.get(c.department_id) || [];
-        arr.push(c.id);
-        deptCourseMap.set(c.department_id, arr);
-      }
-    });
-
-    const stats: DeptStats[] = (departments || []).map(d => {
-      const dCourseIds = deptCourseMap.get(d.id) || [];
-      const dRecords = records?.filter(r => dCourseIds.includes(r.course_id)) || [];
-      const dPresent = dRecords.filter(r => r.status === 'present').length;
-      return {
-        name: d.name,
-        total: dRecords.length,
-        present: dPresent,
-        rate: dRecords.length > 0 ? Math.round((dPresent / dRecords.length) * 100) : 0,
-      };
-    }).filter(d => d.total > 0);
-
-    setDeptStats(stats);
+    try {
+      const res = await schoolService.getStats();
+      const stats = res.data?.data ?? {};
+      // Backend may expose attendance summary; fall back to zeros if not available.
+      const att = stats.attendance ?? {};
+      setTotalAttendance(att.total ?? 0);
+      setTotalPresent(att.present ?? 0);
+      setDeptStats(
+        (att.byDepartment ?? []).map((d: any) => ({
+          name: d.name,
+          total: d.total ?? 0,
+          present: d.present ?? 0,
+          rate: d.total ? Math.round((d.present / d.total) * 100) : 0,
+        }))
+      );
+    } catch {
+      setTotalAttendance(0);
+      setTotalPresent(0);
+      setDeptStats([]);
+    }
     setLoading(false);
   }
 

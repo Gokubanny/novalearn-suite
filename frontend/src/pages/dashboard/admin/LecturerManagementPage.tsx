@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { supabase } from '@/integrations/supabase/client';
+import { schoolService } from '@/services/school.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 
@@ -43,29 +43,21 @@ export default function LecturerManagementPage() {
 
   async function fetchLecturers() {
     setLoading(true);
-    const { data: adminProfile } = await supabase.from('profiles').select('institution_id').eq('user_id', user!.id).single();
-    if (!adminProfile?.institution_id) { setLoading(false); return; }
-
-    // Get profiles with staff_id (lecturers typically have staff_id set)
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, email, staff_id, department')
-      .eq('institution_id', adminProfile.institution_id)
-      .not('staff_id', 'is', null);
-
-    if (!profiles) { setLecturers([]); setLoading(false); return; }
-
-    // Count courses per lecturer
-    const lecturerIds = profiles.map(p => p.id);
-    const { data: courses } = await supabase
-      .from('courses')
-      .select('lecturer_id')
-      .in('lecturer_id', lecturerIds.length ? lecturerIds : ['none']);
-
-    const countMap = new Map<string, number>();
-    courses?.forEach(c => { if (c.lecturer_id) countMap.set(c.lecturer_id, (countMap.get(c.lecturer_id) || 0) + 1); });
-
-    setLecturers(profiles.map(p => ({ ...p, courseCount: countMap.get(p.id) || 0 })));
+    try {
+      const res = await schoolService.getAllLecturers();
+      const list: LecturerProfile[] = (res.data?.data ?? []).map((l: any) => ({
+        id: l._id ?? l.id,
+        first_name: l.user?.firstName ?? l.firstName ?? '',
+        last_name: l.user?.lastName ?? l.lastName ?? '',
+        email: l.user?.email ?? l.email ?? '',
+        staff_id: l.staffId ?? null,
+        department: l.department?.name ?? l.department ?? null,
+        courseCount: l.courseCount ?? (l.courses?.length ?? 0),
+      }));
+      setLecturers(list);
+    } catch {
+      setLecturers([]);
+    }
     setLoading(false);
   }
 

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { StatsCardSkeleton, TableRowSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { supabase } from '@/integrations/supabase/client';
+import { superAdminService } from '@/services/superadmin.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
@@ -42,17 +42,27 @@ export default function SuperAdminDashboard() {
 
   async function fetchDashboard() {
     setLoading(true);
-
-    const [instRes, usersRes] = await Promise.all([
-      supabase.from('institutions').select('id, name, code, is_active, subscription_plan').order('created_at', { ascending: false }),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-    ]);
-
-    setData({
-      totalInstitutions: (instRes.data || []).length,
-      totalUsers: usersRes.count || 0,
-      institutions: (instRes.data || []).slice(0, 5),
-    });
+    try {
+      const [statsRes, schoolsRes] = await Promise.all([
+        superAdminService.getStats(),
+        superAdminService.getAllSchools({ limit: 5 }),
+      ]);
+      const stats = statsRes.data?.data ?? {};
+      const schools = (schoolsRes.data?.data ?? []).map((s: any) => ({
+        id: s._id ?? s.id,
+        name: s.name,
+        code: s.code,
+        is_active: s.isActive ?? true,
+        subscription_plan: s.subscription?.plan ?? null,
+      }));
+      setData({
+        totalInstitutions: stats.totalSchools ?? schools.length,
+        totalUsers: stats.totalUsers ?? 0,
+        institutions: schools,
+      });
+    } catch {
+      setData({ totalInstitutions: 0, totalUsers: 0, institutions: [] });
+    }
     setLoading(false);
   }
 

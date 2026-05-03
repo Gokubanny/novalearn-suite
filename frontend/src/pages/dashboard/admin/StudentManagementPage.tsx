@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
+import { schoolService } from '@/services/school.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { StatsCardSkeleton, TableRowSkeleton } from '@/components/dashboard/DashboardSkeleton';
@@ -57,53 +57,43 @@ export default function StudentManagementPage() {
 
   async function fetchStudents() {
     setLoading(true);
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('institution_id')
-      .eq('user_id', user!.id)
-      .single();
-    
-    if (!adminProfile?.institution_id) { setLoading(false); return; }
-
-    // Get student user_ids from user_roles
-    const { data: studentRoles } = await supabase
-      .from('user_roles')
-      .select('user_id')
-      .eq('role', 'student');
-
-    const studentUserIds = (studentRoles || []).map(r => r.user_id);
-
-    if (studentUserIds.length === 0) { setStudents([]); setLoading(false); return; }
-
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, user_id, first_name, last_name, email, matric_number, department, avatar_url, approval_status, created_at')
-      .eq('institution_id', adminProfile.institution_id)
-      .in('user_id', studentUserIds)
-      .order('created_at', { ascending: false });
-
-    setStudents(profiles as StudentProfile[] || []);
+    try {
+      const res = await schoolService.getAllStudents({ limit: 200 });
+      const list: StudentProfile[] = (res.data?.data ?? []).map((s: any) => ({
+        id: s._id ?? s.id,
+        user_id: s.user?._id ?? s.user?.id ?? s.user ?? s._id,
+        first_name: s.user?.firstName ?? s.firstName ?? '',
+        last_name: s.user?.lastName ?? s.lastName ?? '',
+        email: s.user?.email ?? s.email ?? '',
+        matric_number: s.matricNumber ?? null,
+        department: s.department?.name ?? s.department ?? null,
+        avatar_url: s.user?.profileImage ?? null,
+        approval_status: s.approvalStatus ?? 'pending',
+        created_at: s.createdAt ?? null,
+      }));
+      setStudents(list);
+    } catch {
+      setStudents([]);
+    }
     setLoading(false);
   }
 
   async function handleApproval(student: StudentProfile, action: 'approve' | 'reject') {
     setProcessing(true);
     const newStatus = action === 'approve' ? 'approved' : 'rejected';
-    
-    // Admin updates the student's profile - this requires admin RLS or using the student's user_id
-    const { error } = await supabase
-      .from('profiles')
-      .update({ approval_status: newStatus })
-      .eq('id', student.id);
-
-    if (error) {
-      toast({ title: 'Action failed', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ 
+    try {
+      if (action === 'approve') {
+        await schoolService.approveStudent(student.id);
+      } else {
+        await schoolService.rejectStudent(student.id, 'Rejected by admin');
+      }
+      toast({
         title: action === 'approve' ? 'Student Approved' : 'Student Rejected',
         description: `${student.first_name} ${student.last_name} has been ${newStatus}.`,
       });
       setStudents(prev => prev.map(s => s.id === student.id ? { ...s, approval_status: newStatus } : s));
+    } catch (err: any) {
+      toast({ title: 'Action failed', description: err?.message ?? 'Request failed', variant: 'destructive' });
     }
     setProcessing(false);
     setActionDialog(null);

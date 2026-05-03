@@ -13,7 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
+import { courseService } from '@/services/course.service';
+import { assignmentService } from '@/services/assignment.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { useToast } from '@/hooks/use-toast';
@@ -67,103 +68,64 @@ export default function LecturerAssignmentsPage() {
   const fetchData = async () => {
     if (!user) return;
     setLoading(true);
+    try {
+      const [coursesRes, assignmentsRes] = await Promise.all([
+        courseService.getLecturerCourses(),
+        assignmentService.getLecturerAssignments(),
+      ]);
+      const coursesList: LecturerCourse[] = (coursesRes.data?.data ?? []).map((c: any) => ({
+        id: c._id ?? c.id, title: c.title, code: c.code,
+      }));
+      setCourses(coursesList);
 
-    // Fetch lecturer's courses
-    const { data: coursesData } = await supabase
-      .from('courses')
-      .select('id, title, code')
-      .eq('lecturer_id', user.id);
-
-    setCourses(coursesData ?? []);
-
-    if (!coursesData || coursesData.length === 0) {
-      setAssignments([]);
-      setLoading(false);
-      return;
-    }
-
-    const courseIds = coursesData.map(c => c.id);
-    const courseMap = new Map(coursesData.map(c => [c.id, c]));
-
-    // Fetch assignments for these courses
-    const { data: assignmentsData } = await supabase
-      .from('assignments')
-      .select('*')
-      .in('course_id', courseIds)
-      .order('due_date', { ascending: false });
-
-    if (!assignmentsData) {
-      setAssignments([]);
-      setLoading(false);
-      return;
-    }
-
-    const enriched = await Promise.all(
-      assignmentsData.map(async (a) => {
-        const course = courseMap.get(a.course_id);
-        const [{ count: enrollCount }, { data: subs }] = await Promise.all([
-          supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', a.course_id),
-          supabase.from('submissions').select('status').eq('assignment_id', a.id),
-        ]);
-
+      const list: AssignmentWithStats[] = (assignmentsRes.data?.data ?? []).map((a: any) => {
+        const courseId = a.course?._id ?? a.course?.id ?? a.course;
+        const course = coursesList.find(c => c.id === courseId);
+        const submissions = a.submissions ?? [];
         return {
-          id: a.id,
+          id: a._id ?? a.id,
           title: a.title,
-          description: a.description,
-          due_date: a.due_date,
-          max_score: a.max_score,
-          is_published: a.is_published ?? false,
-          course_title: course?.title ?? 'Unknown',
-          course_code: course?.code ?? '',
-          course_id: a.course_id,
-          total_students: enrollCount ?? 0,
-          total_submissions: subs?.length ?? 0,
-          graded_count: subs?.filter(s => s.status === 'graded').length ?? 0,
+          description: a.description ?? null,
+          due_date: a.dueDate ?? a.due_date,
+          max_score: a.maxScore ?? null,
+          is_published: a.isPublished ?? true,
+          course_title: course?.title ?? a.course?.title ?? 'Unknown',
+          course_code: course?.code ?? a.course?.code ?? '',
+          course_id: courseId,
+          total_students: a.totalStudents ?? course ? (a.totalStudents ?? 0) : 0,
+          total_submissions: a.totalSubmissions ?? submissions.length,
+          graded_count: a.gradedCount ?? submissions.filter((s: any) => s.status === 'graded' || s.score != null).length,
         };
-      })
-    );
-
-    setAssignments(enriched);
+      });
+      setAssignments(list);
+    } catch {
+      setAssignments([]);
+    }
     setLoading(false);
   };
 
   const handleCreate = async () => {
     if (!user || !form.title || !form.course_id || !form.due_date) return;
     setCreating(true);
-
-    let fileUrl: string | null = null;
-    const file = fileRef.current?.files?.[0];
-    if (file) {
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('assignments')
-        .upload(filePath, file);
-      if (uploadError) {
-        toast({ title: 'File upload failed', description: uploadError.message, variant: 'destructive' });
-        setCreating(false);
-        return;
-      }
-      fileUrl = filePath;
-    }
-
-    const { error } = await supabase.from('assignments').insert({
-      title: form.title,
-      description: form.description || null,
-      course_id: form.course_id,
-      due_date: form.due_date,
-      max_score: parseInt(form.max_score) || 100,
-      created_by: user.id,
-      is_published: true,
-      file_url: fileUrl,
-    });
-
-    if (error) {
-      toast({ title: 'Failed to create', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      const file = fileRef.current?.files?.[0];
+      const files = file ? [file] : undefined;
+      await assignmentService.createAssignment(
+        {
+          title: form.title,
+          description: form.description || '',
+          course: form.course_id,
+          dueDate: form.due_date,
+          maxScore: parseInt(form.max_score) || 100,
+        },
+        files
+      );
       toast({ title: 'Assignment created!' });
       setCreateOpen(false);
       setForm({ title: '', description: '', course_id: '', due_date: '', max_score: '100' });
       fetchData();
+    } catch (err: any) {
+      toast({ title: 'Failed to create', description: err?.message ?? 'Request failed', variant: 'destructive' });
     }
     setCreating(false);
   };
