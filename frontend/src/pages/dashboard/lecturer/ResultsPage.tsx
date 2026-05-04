@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { toast } from 'sonner';
+import { courseService } from '@/services/course.service';
+import { resultService } from '@/services/result.service';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -39,10 +40,9 @@ function getGradeColor(grade: string) {
   return 'bg-red-100 text-red-800';
 }
 
-interface CourseOption { id: string; code: string; title: string; }
+interface CourseOption { id: string; code: string; title: string; semester?: string; session?: string; }
 interface StudentResult {
   studentId: string;
-  resultId: string | null;
   name: string;
   matric: string;
   ca_score: number;
@@ -70,66 +70,64 @@ export default function LecturerResultsPage() {
   }, [selectedCourse]);
 
   async function fetchCourses() {
-    const { data: profile } = await supabase
-      .from('profiles').select('id').eq('user_id', user!.id).single();
-    if (!profile) { setLoading(false); return; }
-
-    const { data } = await supabase
-      .from('courses').select('id, code, title')
-      .eq('lecturer_id', profile.id).eq('is_active', true);
-
-    setCourses(data || []);
-    if (data && data.length > 0) setSelectedCourse(data[0].id);
-    else setLoading(false);
+    try {
+      const res = await courseService.getLecturerCourses();
+      const list: any[] = res.data?.data ?? [];
+      const opts = list.map(c => ({
+        id: c._id ?? c.id, code: c.code, title: c.title,
+        semester: c.semester, session: c.session,
+      }));
+      setCourses(opts);
+      if (opts.length > 0) setSelectedCourse(opts[0].id);
+      else setLoading(false);
+    } catch (err: any) {
+      toast.error(err.message);
+      setLoading(false);
+    }
   }
 
   async function fetchStudentResults() {
     setLoading(true);
-    // Get enrolled students
-    const { data: enrollments } = await supabase
-      .from('enrollments').select('student_id')
-      .eq('course_id', selectedCourse).eq('status', 'enrolled');
+    try {
+      const [studentsRes, resultsRes] = await Promise.all([
+        courseService.getCourseStudents(selectedCourse),
+        resultService.getCourseResults(selectedCourse).catch(() => ({ data: { data: [] } })),
+      ]);
+      const studentList: any[] = studentsRes.data?.data ?? [];
+      const resultList: any[] = resultsRes.data?.data ?? [];
+      const resultMap = new Map<string, any>();
+      resultList.forEach((r) => {
+        const sid = (typeof r.student === 'object' ? (r.student._id ?? r.student.id) : r.student);
+        resultMap.set(String(sid), r);
+      });
 
-    const studentIds = enrollments?.map(e => e.student_id) || [];
-    if (studentIds.length === 0) { setStudents([]); setLoading(false); return; }
-
-    // Get profiles
-    const { data: profiles } = await supabase
-      .from('profiles').select('id, first_name, last_name, matric_number')
-      .in('id', studentIds);
-
-    // Get existing results
-    const { data: results } = await supabase
-      .from('results').select('id, student_id, ca_score, exam_score, total_score, grade, is_published')
-      .eq('course_id', selectedCourse)
-      .in('student_id', studentIds);
-
-    const resultMap = new Map(results?.map(r => [r.student_id, r]));
-
-    setStudents((profiles || []).map(p => {
-      const r = resultMap.get(p.id);
-      const ca = Number(r?.ca_score) || 0;
-      const exam = Number(r?.exam_score) || 0;
-      const total = ca + exam;
-      return {
-        studentId: p.id,
-        resultId: r?.id || null,
-        name: `${p.first_name} ${p.last_name}`,
-        matric: p.matric_number || '—',
-        ca_score: ca,
-        exam_score: exam,
-        total,
-        grade: r?.grade || computeGrade(total),
-        is_published: r?.is_published || false,
-      };
-    }));
+      setStudents(studentList.map((s) => {
+        const sid = String(s._id ?? s.id);
+        const r = resultMap.get(sid);
+        const ca = Number(r?.caScore) || 0;
+        const exam = Number(r?.examScore) || 0;
+        const total = ca + exam;
+        return {
+          studentId: sid,
+          name: `${s.user?.firstName ?? ''} ${s.user?.lastName ?? ''}`.trim() || 'Student',
+          matric: s.matricNumber || '—',
+          ca_score: ca,
+          exam_score: exam,
+          total: r ? (r.totalScore ?? total) : total,
+          grade: r?.grade || computeGrade(total),
+          is_published: !!r?.isPublished,
+        };
+      }));
+    } catch (err: any) {
+      toast.error(err.message);
+    }
     setLoading(false);
   }
 
   function updateScore(idx: number, field: 'ca_score' | 'exam_score', value: string) {
     setStudents(prev => {
       const updated = [...prev];
-      const num = Math.max(0, Math.min(field === 'ca_score' ? 30 : 70, Number(value) || 0));
+      const num = Math.max(0, Math.min(field === 'ca_score' ? 40 : 60, Number(value) || 0));
       updated[idx] = { ...updated[idx], [field]: num };
       const total = updated[idx].ca_score + updated[idx].exam_score;
       updated[idx].total = total;
@@ -141,26 +139,24 @@ export default function LecturerResultsPage() {
   async function saveResults(publish: boolean) {
     setSaving(true);
     try {
-      for (const s of students) {
-        const payload = {
-          course_id: selectedCourse,
-          student_id: s.studentId,
-          ca_score: s.ca_score,
-          exam_score: s.exam_score,
-          total_score: s.total,
-          grade: s.grade,
-          is_published: publish,
-        };
-        if (s.resultId) {
-          await supabase.from('results').update(payload).eq('id', s.resultId);
-        } else {
-          await supabase.from('results').insert(payload);
-        }
+      const course = courses.find(c => c.id === selectedCourse);
+      const payload = {
+        results: students.map(s => ({
+          studentId: s.studentId,
+          caScore: s.ca_score,
+          examScore: s.exam_score,
+        })),
+        semester: course?.semester,
+        session: course?.session,
+      };
+      await resultService.uploadResults(selectedCourse, payload);
+      if (publish) {
+        await resultService.publishResults(selectedCourse, course?.session);
       }
       toast.success(publish ? 'Results published!' : 'Results saved as draft');
       fetchStudentResults();
-    } catch {
-      toast.error('Failed to save results');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to save results');
     } finally {
       setSaving(false);
     }
@@ -184,13 +180,9 @@ export default function LecturerResultsPage() {
             <p className="text-muted-foreground">Enter scores and publish student results</p>
           </div>
           <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-            <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="Select Course" />
-            </SelectTrigger>
+            <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select Course" /></SelectTrigger>
             <SelectContent>
-              {courses.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.code} — {c.title}</SelectItem>
-              ))}
+              {courses.map(c => <SelectItem key={c.id} value={c.id}>{c.code} — {c.title}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -215,7 +207,7 @@ export default function LecturerResultsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Student Results — {currentCourse?.code}</CardTitle>
-                <CardDescription>CA (30) + Exam (70) = Total (100)</CardDescription>
+                <CardDescription>CA (40) + Exam (60) = Total (100)</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -223,8 +215,8 @@ export default function LecturerResultsPage() {
                     <TableRow>
                       <TableHead>Matric No</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead className="text-center">CA (30)</TableHead>
-                      <TableHead className="text-center">Exam (70)</TableHead>
+                      <TableHead className="text-center">CA (40)</TableHead>
+                      <TableHead className="text-center">Exam (60)</TableHead>
                       <TableHead className="text-center">Total</TableHead>
                       <TableHead className="text-center">Grade</TableHead>
                     </TableRow>
@@ -235,11 +227,11 @@ export default function LecturerResultsPage() {
                         <TableCell className="font-medium">{s.matric}</TableCell>
                         <TableCell>{s.name}</TableCell>
                         <TableCell className="text-center">
-                          <Input className="w-16 text-center mx-auto" type="number" min={0} max={30}
+                          <Input className="w-16 text-center mx-auto" type="number" min={0} max={40}
                             value={s.ca_score} onChange={e => updateScore(i, 'ca_score', e.target.value)} />
                         </TableCell>
                         <TableCell className="text-center">
-                          <Input className="w-16 text-center mx-auto" type="number" min={0} max={70}
+                          <Input className="w-16 text-center mx-auto" type="number" min={0} max={60}
                             value={s.exam_score} onChange={e => updateScore(i, 'exam_score', e.target.value)} />
                         </TableCell>
                         <TableCell className="text-center font-bold">{s.total}</TableCell>
