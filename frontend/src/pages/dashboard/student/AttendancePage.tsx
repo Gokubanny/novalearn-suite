@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentNavItems } from '@/constants/studentNav';
+import { courseService } from '@/services/course.service';
+import { attendanceService } from '@/services/attendance.service';
 
 const navItems = studentNavItems;
 
@@ -40,78 +41,65 @@ export default function StudentAttendancePage() {
   }, [user]);
 
   const fetchAttendanceData = async () => {
-    if (!user) return;
     setLoading(true);
+    try {
+      const cRes = await courseService.getStudentCourses();
+      const courses: any[] = cRes.data?.data ?? [];
+      if (courses.length === 0) {
+        setCourseAttendance([]); setRecentRecords([]); setLoading(false); return;
+      }
 
-    // Get enrolled courses
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('course_id')
-      .eq('student_id', user.id);
+      const summaries = await Promise.all(courses.map(async (c) => {
+        const cid = c._id ?? c.id;
+        try {
+          const r = await attendanceService.getStudentAttendanceSummary(cid);
+          return { course: c, summary: r.data?.data };
+        } catch {
+          return { course: c, summary: null };
+        }
+      }));
 
-    if (!enrollments || enrollments.length === 0) {
-      setCourseAttendance([]);
-      setRecentRecords([]);
+      const stats: CourseAttendance[] = [];
+      const records: RecentRecord[] = [];
+      summaries.forEach(({ course, summary }) => {
+        if (!summary) return;
+        const total = summary.totalClasses ?? summary.total ?? 0;
+        const attended = summary.attended ?? summary.present ?? 0;
+        if (total > 0) {
+          stats.push({
+            courseId: course._id ?? course.id,
+            courseName: course.title,
+            courseCode: course.code,
+            attended,
+            total,
+            percentage: Math.round((attended / total) * 100),
+          });
+        }
+        const recs: any[] = summary.records ?? summary.history ?? [];
+        recs.forEach((r) => {
+          records.push({
+            id: r._id ?? r.id ?? `${course._id}-${r.date}`,
+            date: r.date ?? r.markedAt,
+            courseName: course.title,
+            status: r.status ?? 'present',
+            method: r.method ?? null,
+          });
+        });
+      });
+
+      records.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      setCourseAttendance(stats);
+      setRecentRecords(records.slice(0, 20));
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const courseIds = enrollments.map(e => e.course_id);
-
-    // Get courses info
-    const { data: courses } = await supabase
-      .from('courses')
-      .select('id, title, code')
-      .in('id', courseIds);
-
-    const courseMap = new Map((courses || []).map(c => [c.id, c]));
-
-    // Get all attendance records for this student in these courses
-    const { data: allRecords } = await supabase
-      .from('attendance')
-      .select('*')
-      .eq('student_id', user.id)
-      .in('course_id', courseIds)
-      .order('date', { ascending: false });
-
-    const records = allRecords || [];
-
-    // Calculate per-course stats
-    const courseStats: CourseAttendance[] = courseIds.map(cid => {
-      const c = courseMap.get(cid);
-      const courseRecords = records.filter(r => r.course_id === cid);
-      const totalClasses = courseRecords.length;
-      const attended = courseRecords.filter(r => r.status === 'present' || r.status === 'late').length;
-      const percentage = totalClasses > 0 ? Math.round((attended / totalClasses) * 100) : 0;
-      return {
-        courseId: cid,
-        courseName: c?.title ?? 'Unknown',
-        courseCode: c?.code ?? '',
-        attended,
-        total: totalClasses,
-        percentage,
-      };
-    }).filter(s => s.total > 0);
-
-    setCourseAttendance(courseStats);
-
-    // Recent records
-    setRecentRecords(records.slice(0, 20).map(r => ({
-      id: r.id,
-      date: r.date,
-      courseName: courseMap.get(r.course_id)?.title ?? 'Unknown',
-      status: r.status ?? 'present',
-      method: r.method,
-    })));
-
-    setLoading(false);
   };
 
   const totalAttended = courseAttendance.reduce((a, c) => a + c.attended, 0);
   const totalClasses = courseAttendance.reduce((a, c) => a + c.total, 0);
   const totalAbsent = totalClasses - totalAttended;
   const overallPercentage = totalClasses > 0 ? Math.round((totalAttended / totalClasses) * 100) : 0;
-  const lateCount = (recentRecords || []).filter(r => r.status === 'late').length;
+  const lateCount = recentRecords.filter(r => r.status === 'late').length;
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
@@ -126,9 +114,7 @@ export default function StudentAttendancePage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

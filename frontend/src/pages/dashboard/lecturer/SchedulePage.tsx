@@ -4,9 +4,9 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
+import { courseService } from '@/services/course.service';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -20,6 +20,7 @@ const navItems = [
 ];
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const dayIndex = (d: string) => dayNames.indexOf(d);
 
 interface TimetableEntry {
   id: string;
@@ -44,48 +45,25 @@ export default function LecturerSchedulePage() {
   async function fetchSchedule() {
     setLoading(true);
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', user!.id)
-        .single();
-      if (!profile) { setLoading(false); return; }
-
-      // Get lecturer's courses
-      const { data: courses } = await supabase
-        .from('courses')
-        .select('id, code, title')
-        .eq('lecturer_id', profile.id)
-        .eq('is_active', true);
-
-      const courseIds = courses?.map(c => c.id) || [];
-      if (courseIds.length === 0) { setEntries([]); setLoading(false); return; }
-
-      const courseMap = new Map(courses?.map(c => [c.id, { code: c.code, title: c.title }]));
-
-      // Get timetable
-      const { data } = await supabase
-        .from('timetable')
-        .select('id, day_of_week, start_time, end_time, venue, course_id')
-        .in('course_id', courseIds)
-        .order('day_of_week')
-        .order('start_time');
-
-      // Get enrollment counts
-      const { data: enrollments } = await supabase
-        .from('enrollments')
-        .select('course_id')
-        .in('course_id', courseIds)
-        .eq('status', 'enrolled');
-
-      const countMap = new Map<string, number>();
-      enrollments?.forEach(e => countMap.set(e.course_id, (countMap.get(e.course_id) || 0) + 1));
-
-      setEntries((data || []).map(e => ({
-        ...e,
-        course: courseMap.get(e.course_id) || null,
-        studentCount: countMap.get(e.course_id) || 0,
-      })));
+      const res = await courseService.getLecturerCourses();
+      const courses: any[] = res.data?.data ?? [];
+      const list: TimetableEntry[] = [];
+      courses.forEach((c) => {
+        const studentCount = Array.isArray(c.enrolledStudents) ? c.enrolledStudents.length : 0;
+        (c.schedule ?? []).forEach((s: any, i: number) => {
+          list.push({
+            id: `${c._id ?? c.id}-${i}`,
+            day_of_week: dayIndex(s.day),
+            start_time: s.startTime ?? '',
+            end_time: s.endTime ?? '',
+            venue: s.venue ?? null,
+            course: { code: c.code, title: c.title },
+            studentCount,
+          });
+        });
+      });
+      list.sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
+      setEntries(list);
     } finally {
       setLoading(false);
     }
@@ -108,7 +86,7 @@ export default function LecturerSchedulePage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">Class Schedule</h1>
-          <p className="text-muted-foreground">Your teaching schedule from the timetable</p>
+          <p className="text-muted-foreground">Your teaching schedule</p>
         </div>
 
         {loading ? (

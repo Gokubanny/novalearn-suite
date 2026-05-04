@@ -1,20 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
-import { Camera, Save, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Save, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { studentNavItems } from '@/constants/studentNav';
 import { useAccentColor } from '@/hooks/useAccentColor';
 import { AccentColorPicker } from '@/components/dashboard/AccentColorPicker';
+import { authService } from '@/services/auth.service';
 
 const navItems = studentNavItems;
 
@@ -25,58 +24,61 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ first_name: '', last_name: '', phone: '', bio: '' });
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (user) fetchProfile(); }, [user]);
 
   async function fetchProfile() {
-    const { data } = await supabase.from('profiles').select('*').eq('user_id', user!.id).single();
-    if (data) {
+    try {
+      const res = await authService.getMe();
+      const data = res.data?.data ?? res.data;
       setProfile(data);
-      setForm({ first_name: data.first_name, last_name: data.last_name, phone: data.phone || '', bio: data.bio || '' });
+      setForm({
+        first_name: data.firstName ?? '',
+        last_name: data.lastName ?? '',
+        phone: data.phone ?? '',
+        bio: data.bio ?? '',
+      });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load profile');
     }
     setLoading(false);
   }
 
   async function handleSave() {
-    if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update({
-      first_name: form.first_name,
-      last_name: form.last_name,
-      phone: form.phone || null,
-      bio: form.bio || null,
-    }).eq('id', profile.id);
-    if (error) toast.error(error.message);
-    else toast.success('Profile updated!');
+    try {
+      await authService.updateProfile({
+        firstName: form.first_name,
+        lastName: form.last_name,
+        phone: form.phone || undefined,
+      });
+      toast.success('Profile updated!');
+    } catch (err: any) {
+      toast.error(err.message || 'Update failed');
+    }
     setSaving(false);
-  }
-
-  async function handleAvatar() {
-    const file = fileRef.current?.files?.[0];
-    if (!file || !profile) return;
-    const path = `${user!.id}/${Date.now()}_${file.name}`;
-    const { error: upErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-    if (upErr) { toast.error(upErr.message); return; }
-    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
-    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id);
-    setProfile({ ...profile, avatar_url: publicUrl });
-    toast.success('Avatar updated!');
   }
 
   async function handlePasswordUpdate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const currentPw = fd.get('current_password') as string;
     const newPw = fd.get('new_password') as string;
     const confirm = fd.get('confirm_password') as string;
     if (newPw !== confirm) { toast.error('Passwords do not match'); return; }
     if (newPw.length < 6) { toast.error('Password must be at least 6 characters'); return; }
-    const { error } = await supabase.auth.updateUser({ password: newPw });
-    if (error) toast.error(error.message);
-    else { toast.success('Password updated!'); e.currentTarget.reset(); }
+    try {
+      await authService.changePassword(currentPw, newPw);
+      toast.success('Password updated!');
+      e.currentTarget.reset();
+    } catch (err: any) {
+      toast.error(err.message || 'Password update failed');
+    }
   }
 
-  const initials = profile ? `${profile.first_name?.[0] || ''}${profile.last_name?.[0] || ''}` : '';
+  const initials = profile ? `${(profile.firstName ?? '')[0] ?? ''}${(profile.lastName ?? '')[0] ?? ''}` : '';
+  const matric = profile?.matricNumber ?? profile?.student?.matricNumber ?? '';
+  const dept = profile?.department?.name ?? profile?.department ?? '';
 
   if (loading) return (
     <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
@@ -98,20 +100,13 @@ export default function StudentProfilePage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-6">
-              <div className="relative">
-                <Avatar className="w-20 h-20">
-                  {profile?.avatar_url && <AvatarImage src={profile.avatar_url} />}
-                  <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{initials}</AvatarFallback>
-                </Avatar>
-                <Button size="icon" variant="outline" className="absolute -bottom-1 -right-1 rounded-full w-7 h-7"
-                  onClick={() => fileRef.current?.click()}>
-                  <Camera className="h-3 w-3" />
-                </Button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatar} />
-              </div>
+              <Avatar className="w-20 h-20">
+                {profile?.profileImage && <AvatarImage src={profile.profileImage} />}
+                <AvatarFallback className="text-2xl bg-primary text-primary-foreground">{initials}</AvatarFallback>
+              </Avatar>
               <div>
-                <h2 className="text-xl font-bold">{profile?.first_name} {profile?.last_name}</h2>
-                <p className="text-muted-foreground">{profile?.matric_number || ''} • {profile?.department || ''}</p>
+                <h2 className="text-xl font-bold">{profile?.firstName} {profile?.lastName}</h2>
+                <p className="text-muted-foreground">{matric} {dept ? `• ${dept}` : ''}</p>
               </div>
             </div>
           </CardContent>
@@ -145,10 +140,10 @@ export default function StudentProfilePage() {
               <CardHeader><CardTitle>Academic Information</CardTitle><CardDescription>Your enrollment details (read-only)</CardDescription></CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>Matric Number</Label><Input value={profile?.matric_number || '—'} disabled /></div>
-                  <div className="space-y-2"><Label>Department</Label><Input value={profile?.department || '—'} disabled /></div>
+                  <div className="space-y-2"><Label>Matric Number</Label><Input value={matric || '—'} disabled /></div>
+                  <div className="space-y-2"><Label>Department</Label><Input value={dept || '—'} disabled /></div>
                   <div className="space-y-2"><Label>Email</Label><Input value={profile?.email || ''} disabled /></div>
-                  <div className="space-y-2"><Label>Staff ID</Label><Input value={profile?.staff_id || '—'} disabled /></div>
+                  <div className="space-y-2"><Label>School</Label><Input value={profile?.school?.name || profile?.school || '—'} disabled /></div>
                 </div>
               </CardContent>
             </Card>
@@ -159,6 +154,7 @@ export default function StudentProfilePage() {
               <CardHeader><CardTitle>Security Settings</CardTitle><CardDescription>Change your password</CardDescription></CardHeader>
               <CardContent>
                 <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                  <div className="space-y-2"><Label>Current Password</Label><Input type="password" name="current_password" placeholder="Enter current password" required /></div>
                   <div className="space-y-2"><Label>New Password</Label><Input type="password" name="new_password" placeholder="Enter new password" required /></div>
                   <div className="space-y-2"><Label>Confirm Password</Label><Input type="password" name="confirm_password" placeholder="Confirm new password" required /></div>
                   <Button type="submit">Update Password</Button>

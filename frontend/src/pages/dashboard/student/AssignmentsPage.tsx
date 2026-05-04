@@ -1,19 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
+import {
   Clock, CheckCircle, AlertCircle, Upload, Loader2, FileText
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { useToast } from '@/hooks/use-toast';
 import { studentNavItems } from '@/constants/studentNav';
+import { assignmentService } from '@/services/assignment.service';
 
 const navItems = studentNavItems;
 
@@ -26,7 +24,6 @@ interface AssignmentWithSubmission {
   course_title: string;
   course_code: string;
   submission: {
-    id: string;
     status: string | null;
     score: number | null;
     feedback: string | null;
@@ -42,7 +39,6 @@ export default function StudentAssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [submitDialog, setSubmitDialog] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [content, setContent] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -51,109 +47,49 @@ export default function StudentAssignmentsPage() {
   }, [user]);
 
   const fetchAssignments = async () => {
-    if (!user) return;
     setLoading(true);
-
-    // Get enrolled course IDs
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('course_id')
-      .eq('student_id', user.id);
-
-    if (!enrollments || enrollments.length === 0) {
-      setAssignments([]);
-      setLoading(false);
-      return;
+    try {
+      const res = await assignmentService.getStudentAssignments();
+      const list: any[] = res.data?.data ?? [];
+      setAssignments(list.map((a) => {
+        const sub = a.mySubmission;
+        return {
+          id: a._id ?? a.id,
+          title: a.title,
+          description: a.description ?? null,
+          due_date: a.dueDate,
+          max_score: a.totalMarks ?? 100,
+          course_title: a.course?.title ?? 'Unknown',
+          course_code: a.course?.code ?? '',
+          submission: sub ? {
+            status: sub.score != null ? 'graded' : 'submitted',
+            score: sub.score ?? null,
+            feedback: sub.feedback ?? null,
+            file_url: sub.fileUrl ?? sub.file_url ?? null,
+            submitted_at: sub.submittedAt ?? sub.submitted_at ?? null,
+          } : null,
+        };
+      }));
+    } catch (err: any) {
+      toast({ title: 'Failed to load assignments', description: err.message, variant: 'destructive' });
     }
-
-    const courseIds = enrollments.map(e => e.course_id);
-
-    // Get published assignments for enrolled courses
-    const { data: assignmentsData } = await supabase
-      .from('assignments')
-      .select('*, course:courses!assignments_course_id_fkey(title, code)')
-      .in('course_id', courseIds)
-      .eq('is_published', true)
-      .order('due_date', { ascending: true });
-
-    if (!assignmentsData) {
-      setAssignments([]);
-      setLoading(false);
-      return;
-    }
-
-    // Get submissions for these assignments
-    const assignmentIds = assignmentsData.map(a => a.id);
-    const { data: submissions } = await supabase
-      .from('submissions')
-      .select('*')
-      .eq('student_id', user.id)
-      .in('assignment_id', assignmentIds);
-
-    const submissionMap = new Map(submissions?.map(s => [s.assignment_id, s]) ?? []);
-
-    const enriched: AssignmentWithSubmission[] = assignmentsData.map(a => {
-      const sub = submissionMap.get(a.id);
-      const course = a.course as { title: string; code: string } | null;
-      return {
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        due_date: a.due_date,
-        max_score: a.max_score,
-        course_title: course?.title ?? 'Unknown',
-        course_code: course?.code ?? '',
-        submission: sub ? {
-          id: sub.id,
-          status: sub.status,
-          score: sub.score,
-          feedback: sub.feedback,
-          file_url: sub.file_url,
-          submitted_at: sub.submitted_at,
-        } : null,
-      };
-    });
-
-    setAssignments(enriched);
     setLoading(false);
   };
 
   const handleSubmit = async (assignmentId: string) => {
-    if (!user) return;
-    setSubmitting(true);
-
-    let fileUrl: string | null = null;
     const file = fileRef.current?.files?.[0];
-
-    if (file) {
-      const filePath = `${user.id}/${assignmentId}/${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('submissions')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) {
-        toast({ title: 'Upload failed', description: uploadError.message, variant: 'destructive' });
-        setSubmitting(false);
-        return;
-      }
-      fileUrl = filePath;
+    if (!file) {
+      toast({ title: 'File required', description: 'Please attach a file to submit.', variant: 'destructive' });
+      return;
     }
-
-    const { error } = await supabase.from('submissions').insert({
-      assignment_id: assignmentId,
-      student_id: user.id,
-      content: content || null,
-      file_url: fileUrl,
-      status: 'submitted',
-    });
-
-    if (error) {
-      toast({ title: 'Submission failed', description: error.message, variant: 'destructive' });
-    } else {
+    setSubmitting(true);
+    try {
+      await assignmentService.submitAssignment(assignmentId, file);
       toast({ title: 'Submitted successfully!' });
       setSubmitDialog(null);
-      setContent('');
       fetchAssignments();
+    } catch (err: any) {
+      toast({ title: 'Submission failed', description: err.message, variant: 'destructive' });
     }
     setSubmitting(false);
   };
@@ -201,9 +137,7 @@ export default function StudentAssignmentsPage() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
         ) : assignments.length === 0 ? (
           <EmptyState title="No assignments" description="You have no assignments yet." icon={FileText} />
         ) : (
@@ -251,7 +185,11 @@ export default function StudentAssignmentsPage() {
                         <p className="text-sm text-blue-600 mt-2">Awaiting grade</p>
                       </div>
                     </div>
-                    <Button variant="outline">View Submission</Button>
+                    {a.submission?.file_url && (
+                      <Button variant="outline" asChild>
+                        <a href={a.submission.file_url} target="_blank" rel="noreferrer">View Submission</a>
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -276,7 +214,6 @@ export default function StudentAssignmentsPage() {
                         )}
                       </div>
                     </div>
-                    <Button variant="outline">View Feedback</Button>
                   </CardContent>
                 </Card>
               ))}
@@ -285,20 +222,14 @@ export default function StudentAssignmentsPage() {
         )}
       </div>
 
-      {/* Submit Dialog */}
-      <Dialog open={!!submitDialog} onOpenChange={() => { setSubmitDialog(null); setContent(''); }}>
+      <Dialog open={!!submitDialog} onOpenChange={() => setSubmitDialog(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Submit Assignment</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Textarea
-              placeholder="Add notes or content (optional)"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
             <div>
-              <label className="text-sm font-medium">Attach File (optional)</label>
+              <label className="text-sm font-medium">Attach File</label>
               <input ref={fileRef} type="file" className="mt-1 block w-full text-sm" />
             </div>
           </div>

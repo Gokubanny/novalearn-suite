@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { Clock, MapPin, Loader2 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { studentNavItems } from '@/constants/studentNav';
+import { courseService } from '@/services/course.service';
 
 const navItems = studentNavItems;
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const dayIndex = (d: string) => dayNames.indexOf(d);
 
 interface TimetableEntry {
   id: string;
@@ -35,45 +35,23 @@ export default function StudentSchedulePage() {
   async function fetchSchedule() {
     setLoading(true);
     try {
-      // Get student's profile to find institution
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, institution_id')
-        .eq('user_id', user!.id)
-        .single();
-
-      if (!profile?.institution_id) { setLoading(false); return; }
-
-      // Get enrolled course IDs
-      const { data: enrollments } = await supabase
-        .from('enrollments')
-        .select('course_id')
-        .eq('student_id', profile.id)
-        .eq('status', 'enrolled');
-
-      const courseIds = enrollments?.map(e => e.course_id) || [];
-      if (courseIds.length === 0) { setEntries([]); setLoading(false); return; }
-
-      // Get timetable entries for enrolled courses
-      const { data } = await supabase
-        .from('timetable')
-        .select('id, day_of_week, start_time, end_time, venue, course_id')
-        .in('course_id', courseIds)
-        .order('day_of_week')
-        .order('start_time');
-
-      // Get course details
-      const { data: courses } = await supabase
-        .from('courses')
-        .select('id, code, title')
-        .in('id', courseIds);
-
-      const courseMap = new Map(courses?.map(c => [c.id, { code: c.code, title: c.title }]));
-
-      setEntries((data || []).map(e => ({
-        ...e,
-        course: courseMap.get(e.course_id) || null,
-      })));
+      const res = await courseService.getStudentCourses();
+      const courses: any[] = res.data?.data ?? [];
+      const list: TimetableEntry[] = [];
+      courses.forEach((c) => {
+        (c.schedule ?? []).forEach((s: any, i: number) => {
+          list.push({
+            id: `${c._id ?? c.id}-${i}`,
+            day_of_week: dayIndex(s.day),
+            start_time: s.startTime ?? '',
+            end_time: s.endTime ?? '',
+            venue: s.venue ?? null,
+            course: { code: c.code, title: c.title },
+          });
+        });
+      });
+      list.sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
+      setEntries(list);
     } finally {
       setLoading(false);
     }

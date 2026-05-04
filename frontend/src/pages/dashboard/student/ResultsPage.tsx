@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Download, TrendingUp, Loader2, BookOpen, Trophy } from 'lucide-react';
+import { TrendingUp, Loader2, BookOpen, Trophy } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { studentNavItems } from '@/constants/studentNav';
+import { resultService } from '@/services/result.service';
 
 const navItems = studentNavItems;
 
@@ -21,32 +17,20 @@ function getGradeColor(grade: string | null) {
   return 'text-destructive';
 }
 
-function gradePoints(grade: string | null): number {
-  if (grade === 'A') return 5;
-  if (grade === 'B') return 4;
-  if (grade === 'C') return 3;
-  if (grade === 'D') return 2;
-  if (grade === 'E') return 1;
-  return 0;
-}
-
 interface ResultRow {
   id: string;
   ca_score: number | null;
   exam_score: number | null;
   total_score: number | null;
   grade: string | null;
-  is_published: boolean | null;
-  semester: string | null;
-  academic_year: string | null;
   course: { code: string; title: string; credit_units: number | null } | null;
+  gradePoint: number;
 }
 
 export default function StudentResultsPage() {
   const { user } = useAuth();
   const [results, setResults] = useState<ResultRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -56,43 +40,30 @@ export default function StudentResultsPage() {
   async function fetchResults() {
     setLoading(true);
     try {
-      const { data: prof } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, matric_number, department')
-        .eq('user_id', user!.id)
-        .single();
-      setProfile(prof);
-      if (!prof) { setLoading(false); return; }
-
-      const { data } = await supabase
-        .from('results')
-        .select('id, ca_score, exam_score, total_score, grade, is_published, semester, academic_year, course_id')
-        .eq('student_id', prof.id)
-        .eq('is_published', true);
-
-      const courseIds = [...new Set(data?.map(r => r.course_id) || [])];
-      const { data: courses } = await supabase
-        .from('courses')
-        .select('id, code, title, credit_units')
-        .in('id', courseIds.length ? courseIds : ['none']);
-
-      const courseMap = new Map(courses?.map(c => [c.id, { code: c.code, title: c.title, credit_units: c.credit_units }]));
-
-      setResults((data || []).map(r => ({
-        ...r,
-        course: courseMap.get(r.course_id) || null,
+      const res = await resultService.getMyResults();
+      const list: any[] = res.data?.data ?? [];
+      setResults(list.map((r) => ({
+        id: r._id ?? r.id,
+        ca_score: r.caScore ?? r.ca_score ?? null,
+        exam_score: r.examScore ?? r.exam_score ?? null,
+        total_score: r.totalScore ?? r.total_score ?? null,
+        grade: r.grade ?? null,
+        gradePoint: r.gradePoint ?? 0,
+        course: r.course ? {
+          code: r.course.code,
+          title: r.course.title,
+          credit_units: r.course.creditUnits ?? r.course.credit_units ?? 3,
+        } : null,
       })));
     } finally {
       setLoading(false);
     }
   }
 
-  // Compute GPA
-  const publishedResults = results.filter(r => r.grade);
   let totalWeighted = 0, totalUnits = 0;
-  publishedResults.forEach(r => {
+  results.forEach(r => {
     const units = r.course?.credit_units || 3;
-    totalWeighted += gradePoints(r.grade) * units;
+    totalWeighted += r.gradePoint * units;
     totalUnits += units;
   });
   const gpa = totalUnits > 0 ? (totalWeighted / totalUnits).toFixed(2) : '—';
@@ -134,7 +105,7 @@ export default function StudentResultsPage() {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Courses Graded</CardTitle>
                   <Trophy className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent><div className="text-2xl font-bold">{publishedResults.length}</div></CardContent>
+                <CardContent><div className="text-2xl font-bold">{results.length}</div></CardContent>
               </Card>
             </div>
 
@@ -144,7 +115,7 @@ export default function StudentResultsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Published Results</CardTitle>
-                  <CardDescription>CA (30) + Exam (70) = Total (100)</CardDescription>
+                  <CardDescription>CA + Exam = Total</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Table>

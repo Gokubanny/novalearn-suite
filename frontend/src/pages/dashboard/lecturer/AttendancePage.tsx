@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { courseService } from '@/services/course.service';
+import { attendanceService } from '@/services/attendance.service';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -23,20 +24,14 @@ const navItems = [
   { name: 'Profile', href: '/dashboard/lecturer/profile', icon: User },
 ];
 
-interface CourseOption {
-  id: string;
-  code: string;
-  title: string;
-}
-
+interface CourseOption { id: string; code: string; title: string; }
 interface StudentAttendance {
-  profile_id: string;
+  studentId: string;
   first_name: string;
   last_name: string;
   matric_number: string | null;
   present: boolean;
 }
-
 interface AttendanceRecord {
   id: string;
   date: string;
@@ -70,129 +65,70 @@ export default function LecturerAttendancePage() {
   }, [selectedCourse]);
 
   const fetchCourses = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('courses')
-      .select('id, code, title')
-      .eq('lecturer_id', user.id);
-    if (data && data.length > 0) {
-      setCourses(data);
-      setSelectedCourse(data[0].id);
+    try {
+      const res = await courseService.getLecturerCourses();
+      const list: any[] = res.data?.data ?? [];
+      const opts = list.map(c => ({ id: c._id ?? c.id, code: c.code, title: c.title }));
+      setCourses(opts);
+      if (opts.length > 0) setSelectedCourse(opts[0].id);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
     setLoading(false);
   };
 
   const fetchStudents = async () => {
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('student_id')
-      .eq('course_id', selectedCourse)
-      .eq('status', 'enrolled');
-
-    if (!enrollments || enrollments.length === 0) {
-      setStudents([]);
-      return;
-    }
-
-    const studentIds = enrollments.map(e => e.student_id);
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, matric_number')
-      .in('id', studentIds);
-
-    if (profiles) {
-      // Check today's existing attendance
-      const today = new Date().toISOString().split('T')[0];
-      const { data: todayAttendance } = await supabase
-        .from('attendance')
-        .select('student_id, status')
-        .eq('course_id', selectedCourse)
-        .eq('date', today);
-
-      const attendanceMap = new Map(
-        (todayAttendance || []).map(a => [a.student_id, a.status])
-      );
-
-      setStudents(profiles.map(p => ({
-        profile_id: p.id,
-        first_name: p.first_name,
-        last_name: p.last_name,
-        matric_number: p.matric_number,
-        present: attendanceMap.get(p.id) === 'present',
+    try {
+      const res = await courseService.getCourseStudents(selectedCourse);
+      const list: any[] = res.data?.data ?? [];
+      setStudents(list.map((s) => ({
+        studentId: s._id ?? s.id,
+        first_name: s.user?.firstName ?? s.firstName ?? '',
+        last_name: s.user?.lastName ?? s.lastName ?? '',
+        matric_number: s.matricNumber ?? null,
+        present: false,
       })));
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
 
   const fetchRecords = async () => {
-    const { data } = await supabase
-      .from('attendance')
-      .select('id, date, status, method, student_id')
-      .eq('course_id', selectedCourse)
-      .order('date', { ascending: false })
-      .limit(50);
-
-    if (!data) return;
-
-    const studentIds = [...new Set(data.map(r => r.student_id))];
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, matric_number')
-      .in('id', studentIds);
-
-    const profileMap = new Map(
-      (profiles || []).map(p => [p.id, p])
-    );
-
-    setRecords(data.map(r => {
-      const p = profileMap.get(r.student_id);
-      return {
-        id: r.id,
-        date: r.date,
+    try {
+      const res = await attendanceService.getCourseAttendance(selectedCourse);
+      const list: any[] = res.data?.data ?? [];
+      setRecords(list.slice(0, 50).map((r) => ({
+        id: r._id ?? r.id,
+        date: r.date ?? r.markedAt ?? '',
         status: r.status ?? 'present',
-        method: r.method,
-        student_name: p ? `${p.first_name} ${p.last_name}` : 'Unknown',
-        matric_number: p?.matric_number ?? null,
-      };
-    }));
+        method: r.method ?? null,
+        student_name: r.student?.user
+          ? `${r.student.user.firstName} ${r.student.user.lastName}`
+          : (r.studentName ?? 'Unknown'),
+        matric_number: r.student?.matricNumber ?? null,
+      })));
+    } catch {
+      setRecords([]);
+    }
   };
 
-  const toggleAttendance = (profileId: string) => {
-    setStudents(prev => prev.map(s =>
-      s.profile_id === profileId ? { ...s, present: !s.present } : s
-    ));
+  const toggleAttendance = (id: string) => {
+    setStudents(prev => prev.map(s => s.studentId === id ? { ...s, present: !s.present } : s));
   };
 
   const submitAttendance = async () => {
-    if (!user || !selectedCourse) return;
+    if (!selectedCourse) return;
     setSubmitting(true);
-
-    const today = new Date().toISOString().split('T')[0];
-
-    // Delete existing records for today first
-    await supabase
-      .from('attendance')
-      .delete()
-      .eq('course_id', selectedCourse)
-      .eq('date', today);
-
-    // This delete won't work due to missing DELETE RLS policy, so we use upsert approach
-    // Insert all attendance records
-    const rows = students.map(s => ({
-      course_id: selectedCourse,
-      student_id: s.profile_id,
-      date: today,
-      status: s.present ? 'present' : 'absent',
-      method: 'manual',
-      marked_by: user.id,
-    }));
-
-    const { error } = await supabase.from('attendance').insert(rows);
-
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      const records = students.map(s => ({
+        studentId: s.studentId,
+        status: s.present ? 'present' : 'absent',
+      }));
+      await attendanceService.markAttendanceManual(selectedCourse, records);
       toast({ title: 'Attendance submitted', description: `${students.filter(s => s.present).length}/${students.length} students marked present.` });
       fetchRecords();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
     setSubmitting(false);
   };
@@ -217,22 +153,16 @@ export default function LecturerAttendancePage() {
           </div>
           {courses.length > 0 && (
             <Select value={selectedCourse} onValueChange={setSelectedCourse}>
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Select Course" />
-              </SelectTrigger>
+              <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select Course" /></SelectTrigger>
               <SelectContent>
-                {courses.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.code} - {c.title}</SelectItem>
-                ))}
+                {courses.map(c => <SelectItem key={c.id} value={c.id}>{c.code} - {c.title}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
         ) : courses.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">No courses assigned yet.</CardContent></Card>
         ) : (
@@ -270,7 +200,7 @@ export default function LecturerAttendancePage() {
                   ) : (
                     <div className="space-y-2">
                       {filteredStudents.map(student => (
-                        <div key={student.profile_id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div key={student.studentId} className="flex items-center justify-between p-3 rounded-lg border">
                           <div className="flex items-center gap-3">
                             <div className={`w-2 h-2 rounded-full ${student.present ? 'bg-green-500' : 'bg-destructive'}`} />
                             <div>
@@ -280,7 +210,7 @@ export default function LecturerAttendancePage() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-muted-foreground">{student.present ? 'Present' : 'Absent'}</span>
-                            <Switch checked={student.present} onCheckedChange={() => toggleAttendance(student.profile_id)} />
+                            <Switch checked={student.present} onCheckedChange={() => toggleAttendance(student.studentId)} />
                           </div>
                         </div>
                       ))}
@@ -341,7 +271,7 @@ export default function LecturerAttendancePage() {
                           </div>
                           <div className="text-right">
                             <Badge variant={r.status === 'present' ? 'default' : 'destructive'}>{r.status}</Badge>
-                            <p className="text-xs text-muted-foreground mt-1">{new Date(r.date).toLocaleDateString()} · {r.method}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{r.date && new Date(r.date).toLocaleDateString()} · {r.method}</p>
                           </div>
                         </div>
                       ))}
