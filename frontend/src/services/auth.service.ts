@@ -14,6 +14,6 @@ export const authService = {
     api.patch(`/api/auth/reset-password/${token}`, { password }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api.patch('/api/auth/change-password', { currentPassword, newPassword }),
-  updateProfile: (data: any) =>
+  updateProfile: (data: { firstName?: string; lastName?: string; phone?: string }) =>
     api.patch('/api/auth/update-profile', data),
 };

@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CourseDiscussions } from '@/components/course/CourseDiscussions';
 import { CourseMaterials } from '@/components/course/CourseMaterials';
 import { useToast } from '@/hooks/use-toast';
 import { studentNavItems } from '@/constants/studentNav';
+import { courseService } from '@/services/course.service';
 
 const navItems = studentNavItems;
 
@@ -29,6 +29,27 @@ interface CourseWithDetails {
   lecturer: { first_name: string; last_name: string } | null;
   enrollment_count: number;
   materials_count: number;
+}
+
+function mapCourse(c: any): CourseWithDetails {
+  const lec = c.lecturer && typeof c.lecturer === 'object'
+    ? {
+        first_name: c.lecturer.user?.firstName ?? c.lecturer.title ?? 'Lecturer',
+        last_name: c.lecturer.user?.lastName ?? '',
+      }
+    : null;
+  return {
+    id: c._id ?? c.id,
+    title: c.title,
+    code: c.code,
+    description: c.description ?? null,
+    is_active: c.isActive ?? true,
+    credit_units: c.creditUnits ?? null,
+    semester: c.semester ?? null,
+    lecturer: lec,
+    enrollment_count: Array.isArray(c.enrolledStudents) ? c.enrolledStudents.length : 0,
+    materials_count: Array.isArray(c.materials) ? c.materials.length : 0,
+  };
 }
 
 export default function StudentCoursesPage() {
@@ -55,52 +76,15 @@ export default function StudentCoursesPage() {
     }
   }, [activeTab]);
 
-  const enrichCourses = async (coursesData: any[]): Promise<CourseWithDetails[]> => {
-    return Promise.all(
-      coursesData.map(async (course) => {
-        const [{ count: enrollCount }, { count: materialsCount }] = await Promise.all([
-          supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('course_id', course.id),
-          supabase.from('course_materials').select('*', { count: 'exact', head: true }).eq('course_id', course.id),
-        ]);
-        return {
-          id: course.id,
-          title: course.title,
-          code: course.code,
-          description: course.description,
-          is_active: course.is_active ?? true,
-          credit_units: course.credit_units,
-          semester: course.semester,
-          lecturer: course.lecturer as { first_name: string; last_name: string } | null,
-          enrollment_count: enrollCount ?? 0,
-          materials_count: materialsCount ?? 0,
-        };
-      })
-    );
-  };
-
   const fetchEnrolledCourses = async () => {
     if (!user) return;
     setLoading(true);
-
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('course_id')
-      .eq('student_id', user.id);
-
-    if (!enrollments || enrollments.length === 0) {
-      setEnrolledCourses([]);
-      setLoading(false);
-      return;
-    }
-
-    const courseIds = enrollments.map((e) => e.course_id);
-    const { data: coursesData } = await supabase
-      .from('courses')
-      .select('*, lecturer:profiles!courses_lecturer_id_fkey(first_name, last_name)')
-      .in('id', courseIds);
-
-    if (coursesData) {
-      setEnrolledCourses(await enrichCourses(coursesData));
+    try {
+      const res = await courseService.getStudentCourses();
+      const list: any[] = res.data?.data ?? [];
+      setEnrolledCourses(list.map(mapCourse));
+    } catch (err: any) {
+      toast({ title: 'Failed to load courses', description: err.message, variant: 'destructive' });
     }
     setLoading(false);
   };
@@ -108,51 +92,29 @@ export default function StudentCoursesPage() {
   const fetchAvailableCourses = async () => {
     if (!user) return;
     setBrowseLoading(true);
-
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('course_id')
-      .eq('student_id', user.id);
-
-    const enrolledIds = (enrollments || []).map((e) => e.course_id);
-
-    let query = supabase
-      .from('courses')
-      .select('*, lecturer:profiles!courses_lecturer_id_fkey(first_name, last_name)')
-      .eq('is_active', true);
-
-    if (enrolledIds.length > 0) {
-      // Filter out already-enrolled courses client-side since .not('id', 'in', ...) needs specific format
-    }
-
-    const { data: coursesData } = await query;
-
-    if (coursesData) {
-      const filtered = coursesData.filter((c) => !enrolledIds.includes(c.id));
-      setAvailableCourses(await enrichCourses(filtered));
+    try {
+      const res = await courseService.getAllCourses({ limit: 100 });
+      const list: any[] = res.data?.data ?? [];
+      const enrolledIds = new Set(enrolledCourses.map(c => c.id));
+      setAvailableCourses(list.map(mapCourse).filter(c => !enrolledIds.has(c.id)));
+    } catch (err: any) {
+      toast({ title: 'Failed to load available courses', description: err.message, variant: 'destructive' });
     }
     setBrowseLoading(false);
   };
 
   const handleEnroll = async (courseId: string) => {
-    if (!user) return;
     setEnrolling(courseId);
-
-    const { error } = await supabase.from('enrollments').insert({
-      course_id: courseId,
-      student_id: user.id,
-    });
-
-    if (error) {
-      toast({ title: 'Enrollment failed', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      await courseService.enrolInCourse(courseId);
       toast({ title: 'Enrolled!', description: 'You have been enrolled in the course.' });
-      // Move from available to enrolled
-      const course = availableCourses.find((c) => c.id === courseId);
+      const course = availableCourses.find(c => c.id === courseId);
       if (course) {
-        setAvailableCourses((prev) => prev.filter((c) => c.id !== courseId));
-        setEnrolledCourses((prev) => [...prev, { ...course, enrollment_count: course.enrollment_count + 1 }]);
+        setAvailableCourses(prev => prev.filter(c => c.id !== courseId));
+        setEnrolledCourses(prev => [...prev, { ...course, enrollment_count: course.enrollment_count + 1 }]);
       }
+    } catch (err: any) {
+      toast({ title: 'Enrollment failed', description: err.message, variant: 'destructive' });
     }
     setEnrolling(null);
   };
@@ -168,9 +130,7 @@ export default function StudentCoursesPage() {
     return (
       <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
         <div className="space-y-4">
-          <Button variant="ghost" onClick={() => setMaterialsCourse(null)}>
-            ← Back to Courses
-          </Button>
+          <Button variant="ghost" onClick={() => setMaterialsCourse(null)}>← Back to Courses</Button>
           <CourseMaterials courseId={materialsCourse.id} courseName={materialsCourse.title} canUpload={false} />
         </div>
       </DashboardLayout>
@@ -181,9 +141,7 @@ export default function StudentCoursesPage() {
     return (
       <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
         <div className="space-y-4">
-          <Button variant="ghost" onClick={() => setDiscussionCourse(null)}>
-            ← Back to Courses
-          </Button>
+          <Button variant="ghost" onClick={() => setDiscussionCourse(null)}>← Back to Courses</Button>
           <CourseDiscussions courseId={discussionCourse.id} courseName={discussionCourse.title} />
         </div>
       </DashboardLayout>
@@ -208,55 +166,32 @@ export default function StudentCoursesPage() {
           <p className="text-sm text-muted-foreground line-clamp-2">{course.description}</p>
         )}
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Users className="h-4 w-4" />
-            <span>{course.enrollment_count} students</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <FileText className="h-4 w-4" />
-            <span>{course.materials_count} materials</span>
-          </div>
+          <div className="flex items-center gap-1"><Users className="h-4 w-4" /><span>{course.enrollment_count} students</span></div>
+          <div className="flex items-center gap-1"><FileText className="h-4 w-4" /><span>{course.materials_count} materials</span></div>
         </div>
         {course.credit_units && (
-          <div className="text-sm text-muted-foreground">
-            {course.credit_units} credit units · {course.semester} semester
-          </div>
+          <div className="text-sm text-muted-foreground">{course.credit_units} credit units · {course.semester} semester</div>
         )}
         {course.lecturer && (
           <div className="pt-2 border-t">
             <p className="text-sm">
               <span className="text-muted-foreground">Instructor:</span>{' '}
-              <span className="font-medium">
-                {course.lecturer.first_name} {course.lecturer.last_name}
-              </span>
+              <span className="font-medium">{course.lecturer.first_name} {course.lecturer.last_name}</span>
             </p>
           </div>
         )}
         {enrolled ? (
           <div className="flex gap-2">
             <Button className="flex-1" onClick={() => setMaterialsCourse({ id: course.id, title: course.title })}>
-              <FileText className="h-4 w-4 mr-2" />
-              Materials
+              <FileText className="h-4 w-4 mr-2" /> Materials
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setDiscussionCourse({ id: course.id, title: course.title })}
-            >
+            <Button variant="outline" size="icon" onClick={() => setDiscussionCourse({ id: course.id, title: course.title })}>
               <MessageSquare className="h-4 w-4" />
             </Button>
           </div>
         ) : (
-          <Button
-            className="w-full"
-            onClick={() => handleEnroll(course.id)}
-            disabled={enrolling === course.id}
-          >
-            {enrolling === course.id ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Plus className="h-4 w-4 mr-2" />
-            )}
+          <Button className="w-full" onClick={() => handleEnroll(course.id)} disabled={enrolling === course.id}>
+            {enrolling === course.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
             Enroll
           </Button>
         )}
@@ -274,12 +209,7 @@ export default function StudentCoursesPage() {
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search courses..."
-              className="pl-9 w-64"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <Input placeholder="Search courses..." className="pl-9 w-64" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
 
@@ -291,19 +221,9 @@ export default function StudentCoursesPage() {
 
           <TabsContent value="enrolled" className="mt-6">
             {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+              <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : filterCourses(enrolledCourses).length === 0 ? (
-              <EmptyState
-                title="No courses found"
-                description={
-                  enrolledCourses.length === 0
-                    ? "You haven't enrolled in any courses yet. Browse available courses to get started."
-                    : 'No courses match your search.'
-                }
-                icon={BookOpen}
-              />
+              <EmptyState title="No courses found" description={enrolledCourses.length === 0 ? "You haven't enrolled in any courses yet. Browse available courses to get started." : 'No courses match your search.'} icon={BookOpen} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterCourses(enrolledCourses).map((c) => renderCourseCard(c, true))}
@@ -313,19 +233,9 @@ export default function StudentCoursesPage() {
 
           <TabsContent value="browse" className="mt-6">
             {browseLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
+              <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : filterCourses(availableCourses).length === 0 ? (
-              <EmptyState
-                title="No available courses"
-                description={
-                  availableCourses.length === 0
-                    ? "You're enrolled in all available courses, or no courses are available yet."
-                    : 'No courses match your search.'
-                }
-                icon={BookOpen}
-              />
+              <EmptyState title="No available courses" description={availableCourses.length === 0 ? "You're enrolled in all available courses, or no courses are available yet." : 'No courses match your search.'} icon={BookOpen} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filterCourses(availableCourses).map((c) => renderCourseCard(c, false))}
