@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { 
-  Clock, Loader2, BookOpen, FileText, CheckCircle, Trophy, Calendar, Brain
+import {
+  BookOpen, FileText, CheckCircle, Trophy, Calendar, Brain
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -9,9 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { StatsCardSkeleton, CardGridSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentNavItems } from '@/constants/studentNav';
+import { courseService } from '@/services/course.service';
+import { assignmentService } from '@/services/assignment.service';
+import { attendanceService } from '@/services/attendance.service';
 
 const navItems = studentNavItems;
 
@@ -34,88 +36,74 @@ export default function StudentDashboard() {
   }, [user]);
 
   async function fetchDashboard() {
-    if (!user) return;
     setLoading(true);
+    try {
+      const [coursesRes, assignmentsRes] = await Promise.all([
+        courseService.getStudentCourses().catch(() => ({ data: { data: [] } })),
+        assignmentService.getStudentAssignments().catch(() => ({ data: { data: [] } })),
+      ]);
 
-    // Get enrollments
-    const { data: enrollments } = await supabase
-      .from('enrollments')
-      .select('course_id')
-      .eq('student_id', user.id);
+      const coursesRaw: any[] = coursesRes.data?.data ?? [];
+      const assignmentsRaw: any[] = assignmentsRes.data?.data ?? [];
 
-    const courseIds = (enrollments || []).map(e => e.course_id);
-    const enrolledCount = courseIds.length;
-
-    // Get courses
-    let courses: DashboardData['courses'] = [];
-    if (courseIds.length > 0) {
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('id, title, code, lecturer:profiles!courses_lecturer_id_fkey(first_name, last_name)')
-        .in('id', courseIds);
-
-      courses = (coursesData || []).map(c => {
-        const lecturer = c.lecturer as { first_name: string; last_name: string } | null;
+      const courses = coursesRaw.map((c) => {
+        const lec = c.lecturer || {};
         return {
-          id: c.id,
+          id: c._id ?? c.id,
           title: c.title,
           code: c.code,
-          progress: Math.floor(Math.random() * 60 + 30), // placeholder until real progress tracking
-          lecturer: lecturer ? `${lecturer.first_name} ${lecturer.last_name}` : 'TBD',
+          progress: 0,
+          lecturer: lec.firstName ? `${lec.firstName} ${lec.lastName ?? ''}`.trim() : 'TBD',
         };
       });
-    }
 
-    // Get pending assignments
-    let pendingAssignments = 0;
-    let upcomingAssignments: DashboardData['upcomingAssignments'] = [];
-    if (courseIds.length > 0) {
-      const { data: assignments } = await supabase
-        .from('assignments')
-        .select('id, title, due_date, course:courses!assignments_course_id_fkey(title)')
-        .in('course_id', courseIds)
-        .eq('is_published', true)
-        .gte('due_date', new Date().toISOString())
-        .order('due_date', { ascending: true })
-        .limit(5);
+      const now = Date.now();
+      const myId = (user as any)?.id ?? (user as any)?._id;
+      const pending = assignmentsRaw.filter((a) => {
+        const due = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+        const submitted = (a.submissions ?? []).some(
+          (s: any) => (s.student?._id ?? s.student) === myId
+        );
+        return !submitted && due >= now;
+      });
 
-      // Check which ones have submissions
-      if (assignments && assignments.length > 0) {
-        const { data: subs } = await supabase
-          .from('submissions')
-          .select('assignment_id')
-          .eq('student_id', user.id)
-          .in('assignment_id', assignments.map(a => a.id));
-
-        const submittedIds = new Set(subs?.map(s => s.assignment_id) || []);
-        const pendingOnes = assignments.filter(a => !submittedIds.has(a.id));
-        pendingAssignments = pendingOnes.length;
-        upcomingAssignments = pendingOnes.slice(0, 3).map(a => ({
-          id: a.id,
+      const upcomingAssignments = pending
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 3)
+        .map((a) => ({
+          id: a._id ?? a.id,
           title: a.title,
-          course: (a.course as { title: string } | null)?.title || 'Unknown',
-          due_date: a.due_date,
+          course: a.course?.title ?? 'Course',
+          due_date: a.dueDate,
         }));
+
+      // Attendance: average per-course summary
+      let attendanceRate = 0;
+      if (courses.length > 0) {
+        const summaries = await Promise.all(
+          courses.map((c) =>
+            attendanceService.getStudentAttendanceSummary(c.id).then(
+              (r) => r.data?.data?.percentage ?? 0,
+              () => 0
+            )
+          )
+        );
+        const valid = summaries.filter((v) => typeof v === 'number');
+        if (valid.length > 0) {
+          attendanceRate = Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
+        }
       }
+
+      setData({
+        enrolledCount: courses.length,
+        pendingAssignments: pending.length,
+        attendanceRate,
+        courses,
+        upcomingAssignments,
+      });
+    } finally {
+      setLoading(false);
     }
-
-    // Get attendance rate
-    let attendanceRate = 0;
-    if (courseIds.length > 0) {
-      const { data: attendance } = await supabase
-        .from('attendance')
-        .select('status')
-        .eq('student_id', user.id)
-        .in('course_id', courseIds);
-
-      if (attendance && attendance.length > 0) {
-        const present = attendance.filter(a => a.status === 'present' || a.status === 'late').length;
-        attendanceRate = Math.round((present / attendance.length) * 100);
-      }
-    }
-
-    setData({ enrolledCount, pendingAssignments, attendanceRate, courses, upcomingAssignments });
-    setLoading(false);
   }
 
   const formatDueDate = (dateStr: string) => {
@@ -130,8 +118,8 @@ export default function StudentDashboard() {
   };
 
   return (
-    <DashboardLayout 
-      navItems={navItems} 
+    <DashboardLayout
+      navItems={navItems}
       roleLabel="Student Portal"
       accentColor="hsl(221, 83%, 53%)"
     >
@@ -146,39 +134,18 @@ export default function StudentDashboard() {
         ) : !data || data.enrolledCount === 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Enrolled Courses</CardTitle>
-                  <BookOpen className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent><div className="text-2xl font-bold">0</div></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Pending Assignments</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent><div className="text-2xl font-bold">0</div></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Attendance</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent><div className="text-2xl font-bold">—</div></CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Results</CardTitle>
-                  <Trophy className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent><div className="text-2xl font-bold">—</div></CardContent>
-              </Card>
+              {['Enrolled Courses', 'Pending Assignments', 'Attendance', 'Results'].map(label => (
+                <Card key={label}>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                  </CardHeader>
+                  <CardContent><div className="text-2xl font-bold">0</div></CardContent>
+                </Card>
+              ))}
             </div>
-
-            <EmptyState 
+            <EmptyState
               icon={BookOpen}
-              title="Welcome to your dashboard" 
+              title="Welcome to your dashboard"
               description="You haven't enrolled in any courses yet. Browse available courses to get started."
               actionLabel="Browse Courses"
               onAction={() => window.location.href = '/dashboard/student/courses'}
@@ -186,7 +153,6 @@ export default function StudentDashboard() {
           </>
         ) : (
           <>
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -231,7 +197,6 @@ export default function StudentDashboard() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Course Progress */}
               <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle>My Courses</CardTitle>
@@ -259,7 +224,6 @@ export default function StudentDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Upcoming Assignments */}
               <Card>
                 <CardHeader>
                   <CardTitle>Upcoming Assignments</CardTitle>
@@ -287,7 +251,6 @@ export default function StudentDashboard() {
               </Card>
             </div>
 
-            {/* Quick Actions */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>

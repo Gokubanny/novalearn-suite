@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Home, BookOpen, Users, FileText, BarChart3, Calendar,
-  CheckCircle, PlusCircle, User, Loader2
+  CheckCircle, PlusCircle, User
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { StatsCardSkeleton, TableRowSkeleton } from '@/components/dashboard/DashboardSkeleton';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { courseService } from '@/services/course.service';
+import { assignmentService } from '@/services/assignment.service';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -28,6 +29,7 @@ interface DashboardData {
   totalStudents: number;
   activeCourses: number;
   pendingReviews: number;
+  totalAssignments: number;
   courses: { id: string; title: string; code: string; studentCount: number; assignmentCount: number }[];
   recentSubmissions: { id: string; student: string; assignment: string; time: string; status: string }[];
 }
@@ -43,102 +45,67 @@ export default function LecturerDashboard() {
   }, [user]);
 
   async function fetchDashboard() {
-    if (!user) return;
     setLoading(true);
+    try {
+      const [coursesRes, assignmentsRes] = await Promise.all([
+        courseService.getLecturerCourses().catch(() => ({ data: { data: [] } })),
+        assignmentService.getLecturerAssignments().catch(() => ({ data: { data: [] } })),
+      ]);
 
-    // Get lecturer's profile id
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('user_id', user.userId)
-      .single();
+      const courses: any[] = coursesRes.data?.data ?? [];
+      const assignments: any[] = assignmentsRes.data?.data ?? [];
 
-    if (!profile) { setLoading(false); return; }
+      let totalStudents = 0;
+      const enrichedCourses = courses.map((c) => {
+        const studentCount = c.enrolledStudents?.length ?? c.enrollmentCount ?? 0;
+        const assignmentCount = assignments.filter(
+          (a) => (a.course?._id ?? a.course) === (c._id ?? c.id)
+        ).length;
+        totalStudents += studentCount;
+        return {
+          id: c._id ?? c.id,
+          title: c.title,
+          code: c.code,
+          studentCount,
+          assignmentCount,
+        };
+      });
 
-    // Get courses where this lecturer is assigned
-    const { data: courses } = await supabase
-      .from('courses')
-      .select('id, title, code')
-      .eq('lecturer_id', profile.id)
-      .eq('is_active', true);
-
-    const courseList = courses || [];
-    const courseIds = courseList.map(c => c.id);
-
-    let totalStudents = 0;
-    let pendingReviews = 0;
-    const enrichedCourses: DashboardData['courses'] = [];
-    const recentSubmissions: DashboardData['recentSubmissions'] = [];
-
-    if (courseIds.length > 0) {
-      // Get enrollment counts per course
-      for (const course of courseList) {
-        const { count: studentCount } = await supabase
-          .from('enrollments')
-          .select('*', { count: 'exact', head: true })
-          .eq('course_id', course.id);
-
-        const { count: assignmentCount } = await supabase
-          .from('assignments')
-          .select('*', { count: 'exact', head: true })
-          .eq('course_id', course.id);
-
-        enrichedCourses.push({
-          id: course.id,
-          title: course.title,
-          code: course.code,
-          studentCount: studentCount || 0,
-          assignmentCount: assignmentCount || 0,
-        });
-        totalStudents += studentCount || 0;
-      }
-
-      // Get pending submissions
-      const { data: subs } = await supabase
-        .from('submissions')
-        .select('id, status, submitted_at, student_id, assignment:assignments!submissions_assignment_id_fkey(title, course_id)')
-        .in('assignment_id', (await supabase.from('assignments').select('id').in('course_id', courseIds)).data?.map(a => a.id) || [])
-        .order('submitted_at', { ascending: false })
-        .limit(5);
-
-      if (subs) {
-        pendingReviews = subs.filter(s => s.status === 'submitted').length;
-        
-        // Get student names
-        const studentIds = [...new Set(subs.map(s => s.student_id))];
-        const { data: studentProfiles } = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name')
-          .in('id', studentIds);
-        
-        const studentMap = new Map(studentProfiles?.map(p => [p.id, `${p.first_name} ${p.last_name}`]) || []);
-
-        for (const sub of subs) {
-          const assignment = sub.assignment as { title: string; course_id: string } | null;
+      const recentSubmissions: DashboardData['recentSubmissions'] = [];
+      let pendingReviews = 0;
+      for (const a of assignments) {
+        const subs: any[] = a.submissions ?? [];
+        for (const s of subs) {
+          if (!s.score && s.score !== 0) pendingReviews += 1;
           recentSubmissions.push({
-            id: sub.id,
-            student: studentMap.get(sub.student_id) || 'Unknown',
-            assignment: assignment?.title || 'Unknown',
-            time: sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString() : '',
-            status: sub.status || 'submitted',
+            id: s._id ?? `${a._id}-${s.student?._id ?? s.student}`,
+            student: s.student?.firstName
+              ? `${s.student.firstName} ${s.student.lastName ?? ''}`.trim()
+              : 'Student',
+            assignment: a.title,
+            time: s.submittedAt ? new Date(s.submittedAt).toLocaleDateString() : '',
+            status: s.score != null ? 'graded' : 'submitted',
           });
         }
       }
-    }
+      recentSubmissions.sort((a, b) => (b.time > a.time ? 1 : -1));
 
-    setData({
-      totalStudents,
-      activeCourses: courseList.length,
-      pendingReviews,
-      courses: enrichedCourses,
-      recentSubmissions,
-    });
-    setLoading(false);
+      setData({
+        totalStudents,
+        activeCourses: enrichedCourses.length,
+        pendingReviews,
+        totalAssignments: assignments.length,
+        courses: enrichedCourses,
+        recentSubmissions: recentSubmissions.slice(0, 5),
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <DashboardLayout 
-      navItems={navItems} 
+    <DashboardLayout
+      navItems={navItems}
       roleLabel="Lecturer Portal"
       accentColor="hsl(142, 71%, 45%)"
     >
@@ -164,9 +131,9 @@ export default function LecturerDashboard() {
                 </Card>
               ))}
             </div>
-            <EmptyState 
+            <EmptyState
               icon={BookOpen}
-              title="No courses assigned" 
+              title="No courses assigned"
               description="You don't have any courses assigned yet. Contact your administrator to get courses assigned."
             />
           </>
@@ -209,7 +176,7 @@ export default function LecturerDashboard() {
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{data.courses.reduce((a, c) => a + c.assignmentCount, 0)}</div>
+                  <div className="text-2xl font-bold">{data.totalAssignments}</div>
                   <p className="text-xs text-muted-foreground">Total assignments</p>
                 </CardContent>
               </Card>
