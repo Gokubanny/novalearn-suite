@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
   Home, Bell, BookOpen, Users, GraduationCap, CreditCard, Settings, Shield,
-  Check, Trash2, Loader2, Mail
+  Check, Loader2, Mail
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/dashboard/EmptyState';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { notificationService } from '@/services/notification.service';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: Home },
@@ -37,6 +37,7 @@ const typeIcons: Record<string, typeof Bell> = {
   financial: CreditCard,
   security: Shield,
   announcement: Mail,
+  info: Bell,
 };
 
 export default function NotificationCentrePage() {
@@ -47,47 +48,44 @@ export default function NotificationCentrePage() {
   useEffect(() => {
     if (!user) return;
     fetchNotifications();
-
-    // Real-time subscription
-    const channel = supabase
-      .channel('notifications')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
-        (payload) => { setNotifications(prev => [payload.new as Notification, ...prev]); }
-      ).subscribe();
-
-    return () => { supabase.removeChannel(channel); };
   }, [user]);
 
   async function fetchNotifications() {
     setLoading(true);
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', user!.id)
-      .order('created_at', { ascending: false })
-      .limit(50);
-    setNotifications((data as Notification[]) || []);
+    try {
+      const res = await notificationService.getMyNotifications({ limit: 50 });
+      const list: any[] = res.data?.data ?? [];
+      setNotifications(
+        list.map((n) => ({
+          id: n._id ?? n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type ?? 'info',
+          is_read: n.isRead ?? false,
+          created_at: n.createdAt ?? null,
+          link: n.link ?? null,
+        }))
+      );
+    } catch {
+      setNotifications([]);
+    }
     setLoading(false);
   }
 
   async function markAsRead(id: string) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    try { await notificationService.markAsRead(id); } catch {}
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
   }
 
   async function markAllRead() {
-    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id);
-    if (unreadIds.length === 0) return;
-    for (const id of unreadIds) {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-    }
+    try { await notificationService.markAllAsRead(); } catch {}
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
   }
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const renderNotification = (n: Notification) => {
-    const Icon = typeIcons[n.type || 'system'] || Bell;
+    const Icon = typeIcons[n.type || 'info'] || Bell;
     return (
       <div key={n.id} className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
         !n.is_read ? 'bg-primary/5 border-primary/20' : 'bg-background border-border hover:bg-muted/50'
