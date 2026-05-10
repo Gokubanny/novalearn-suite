@@ -14,6 +14,7 @@ import { studentNavItems } from '@/constants/studentNav';
 import { useAccentColor } from '@/hooks/useAccentColor';
 import { AccentColorPicker } from '@/components/dashboard/AccentColorPicker';
 import { authService } from '@/services/auth.service';
+import { FaceRegistrationCard } from '@/components/attendance/FaceRegistrationCard';
 
 const navItems = studentNavItems;
 
@@ -163,6 +164,11 @@ export default function StudentProfilePage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <FaceRegistrationCard
+          faceImageUrl={profile?.faceImageUrl ?? profile?.student?.faceImageUrl ?? null}
+          onRegistered={(url) => setProfile((p: any) => ({ ...(p ?? {}), faceImageUrl: url }))}
+        />
 
         <AccentColorPicker currentColor={accentColor} onColorChange={updateAccentColor} defaultColor={defaultColor} />
       </div>

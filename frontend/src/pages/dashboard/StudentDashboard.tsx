@@ -14,6 +14,7 @@ import { studentNavItems } from '@/constants/studentNav';
 import { courseService } from '@/services/course.service';
 import { assignmentService } from '@/services/assignment.service';
 import { attendanceService } from '@/services/attendance.service';
+import { StudentAttendanceAlert } from '@/components/attendance/StudentAttendanceAlert';
 
 const navItems = studentNavItems;
 
@@ -124,6 +125,7 @@ export default function StudentDashboard() {
       accentColor="hsl(221, 83%, 53%)"
     >
       <div className="space-y-6">
+        <StudentAttendanceAlert />
         {loading ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
