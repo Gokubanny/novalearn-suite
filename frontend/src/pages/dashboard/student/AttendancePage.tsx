@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { studentNavItems } from '@/constants/studentNav';
 import { courseService } from '@/services/course.service';
 import { attendanceService } from '@/services/attendance.service';
+import { StudentAttendanceAlert } from '@/components/attendance/StudentAttendanceAlert';
 
 const navItems = studentNavItems;
 
@@ -112,6 +113,8 @@ export default function StudentAttendancePage() {
           <h1 className="text-2xl font-bold">Attendance Records</h1>
           <p className="text-muted-foreground">Track your class attendance across all courses</p>
         </div>
+
+        <StudentAttendanceAlert />
 
         {loading ? (
           <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>

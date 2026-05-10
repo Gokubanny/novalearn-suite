@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { courseService } from '@/services/course.service';
 import { attendanceService } from '@/services/attendance.service';
+import { GeofencedSessionPanel } from '@/components/attendance/GeofencedSessionPanel';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/lecturer', icon: Home },
@@ -166,12 +167,20 @@ export default function LecturerAttendancePage() {
         ) : courses.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">No courses assigned yet.</CardContent></Card>
         ) : (
-          <Tabs defaultValue="manual">
+          <Tabs defaultValue="geofenced">
             <TabsList>
+              <TabsTrigger value="geofenced">Geofenced Session</TabsTrigger>
               <TabsTrigger value="manual">Manual Attendance</TabsTrigger>
               <TabsTrigger value="facial">Facial Recognition</TabsTrigger>
               <TabsTrigger value="records">Records</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="geofenced" className="mt-4">
+              <GeofencedSessionPanel
+                courseId={selectedCourse}
+                courseLabel={courses.find(c => c.id === selectedCourse)?.code}
+              />
+            </TabsContent>
 
             <TabsContent value="manual" className="mt-4">
               <Card>
