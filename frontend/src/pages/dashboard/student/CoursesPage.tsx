@@ -15,6 +15,8 @@ import { CourseMaterials } from '@/components/course/CourseMaterials';
 import { useToast } from '@/hooks/use-toast';
 import { studentNavItems } from '@/constants/studentNav';
 import { courseService } from '@/services/course.service';
+import { attendanceService } from '@/services/attendance.service';
+import { Progress } from '@/components/ui/progress';
 
 const navItems = studentNavItems;
 
@@ -29,6 +31,7 @@ interface CourseWithDetails {
   lecturer: { first_name: string; last_name: string } | null;
   enrollment_count: number;
   materials_count: number;
+  attendance_percentage: number | null;
 }
 
 function mapCourse(c: any): CourseWithDetails {
@@ -49,6 +52,7 @@ function mapCourse(c: any): CourseWithDetails {
     lecturer: lec,
     enrollment_count: Array.isArray(c.enrolledStudents) ? c.enrolledStudents.length : 0,
     materials_count: Array.isArray(c.materials) ? c.materials.length : 0,
+    attendance_percentage: null,
   };
 }
 
@@ -82,7 +86,22 @@ export default function StudentCoursesPage() {
     try {
       const res = await courseService.getStudentCourses();
       const list: any[] = res.data?.data ?? [];
-      setEnrolledCourses(list.map(mapCourse));
+      const mapped = list.map(mapCourse);
+      setEnrolledCourses(mapped);
+      // Fetch attendance % per course in parallel; ignore individual failures.
+      const withAttendance = await Promise.all(
+        mapped.map(async (c) => {
+          try {
+            const r = await attendanceService.getStudentAttendanceSummary(c.id);
+            const data = r.data?.data ?? r.data ?? {};
+            const pct = typeof data.percentage === 'number' ? data.percentage : null;
+            return { ...c, attendance_percentage: pct };
+          } catch {
+            return c;
+          }
+        })
+      );
+      setEnrolledCourses(withAttendance);
     } catch (err: any) {
       toast({ title: 'Failed to load courses', description: err.message, variant: 'destructive' });
     }
@@ -178,6 +197,15 @@ export default function StudentCoursesPage() {
               <span className="text-muted-foreground">Instructor:</span>{' '}
               <span className="font-medium">{course.lecturer.first_name} {course.lecturer.last_name}</span>
             </p>
+          </div>
+        )}
+        {enrolled && course.attendance_percentage !== null && (
+          <div className="pt-2 border-t space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Attendance</span>
+              <span className="font-medium">{Math.round(course.attendance_percentage)}%</span>
+            </div>
+            <Progress value={course.attendance_percentage} className="h-1.5" />
           </div>
         )}
         {enrolled ? (
