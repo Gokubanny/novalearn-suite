@@ -31,7 +31,7 @@ export default function NotificationCentrePage() {
   const { notifications, loading, unreadCount, markAsRead, markAllAsRead, remove } =
     useNotifications(15000);
 
-  const renderNotification = (n: Notification) => {
+  const renderNotification = (n: AppNotification) => {
     const Icon = typeIcons[n.type || 'info'] || Bell;
     return (
       <div key={n.id} className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
@@ -47,11 +47,16 @@ export default function NotificationCentrePage() {
           </div>
           <p className="text-sm text-muted-foreground mt-1">{n.message}</p>
           <p className="text-xs text-muted-foreground mt-2">{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</p>
-          {!n.is_read && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs mt-2" onClick={() => markAsRead(n.id)}>
-              <Check className="h-3 w-3 mr-1" /> Mark Read
+          <div className="flex gap-2 mt-2">
+            {!n.is_read && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => markAsRead(n.id)}>
+                <Check className="h-3 w-3 mr-1" /> Mark Read
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => remove(n.id)}>
+              <Trash2 className="h-3 w-3 mr-1" /> Delete
             </Button>
-          )}
+          </div>
         </div>
       </div>
     );
@@ -66,9 +71,9 @@ export default function NotificationCentrePage() {
               Notification Centre
               {unreadCount > 0 && <Badge variant="destructive" className="text-xs">{unreadCount} new</Badge>}
             </h1>
-            <p className="text-muted-foreground">All platform notifications and alerts</p>
+            <p className="text-muted-foreground">Live updates · auto-refreshes every 15s</p>
           </div>
-          <Button variant="outline" size="sm" onClick={markAllRead}>
+          <Button variant="outline" size="sm" onClick={markAllAsRead}>
             <Check className="h-4 w-4 mr-1" /> Mark All Read
           </Button>
         </div>
