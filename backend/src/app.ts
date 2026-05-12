@@ -16,6 +16,8 @@ import resultRoutes from './modules/results/result.routes';
 import assignmentRoutes from './modules/assignment/assignment.routes';
 import aiRoutes from './modules/ai/ai.routes';
 import notificationRoutes from './modules/notification/notification.routes';
+import materialRoutes from './modules/material/material.routes';
+import discussionRoutes from './modules/discussion/discussion.routes';
 
 import { errorHandler, notFound } from './middleware/error.middleware';
 
@@ -84,6 +86,11 @@ app.use('/api/results', resultRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/materials', materialRoutes);
+app.use('/api/discussions', discussionRoutes);
+
+// Static uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // ── API DOCS PLACEHOLDER ──────────────────────────────────────────────────────
 app.get('/api', (_req, res) => {
