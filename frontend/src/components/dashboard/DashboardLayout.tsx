@@ -124,7 +124,7 @@ export function DashboardLayout({ children, navItems, roleLabel, accentColor: pr
               className="w-10 h-10 rounded-xl flex items-center justify-center"
               style={{ backgroundColor: accentColor }}
             >
-              <span className="text-white font-bold text-lg">N</span>
+             <Link to="/" className="flex items-center gap-2"><span className="text-white font-bold text-lg">N</span></Link>
             </div>
             <div>
               <span className="font-bold text-lg block">NexfordEdu</span>

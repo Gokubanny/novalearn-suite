@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Home, Users, GraduationCap, Building2, CreditCard, BarChart3, Settings,
-  Calendar, PlusCircle, Clock, MapPin, Monitor, Hash, ChevronLeft, ChevronRight, Trash2
+  Calendar, PlusCircle, Clock, MapPin, Monitor, Hash, ChevronLeft, ChevronRight, Trash2, Bell
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,8 @@ const navItems = [
   { name: 'Matric Config', href: '/dashboard/admin/matric-config', icon: Hash },
   { name: 'Timetable', href: '/dashboard/admin/timetable', icon: Calendar },
   { name: 'Subscription', href: '/dashboard/admin/subscription', icon: CreditCard },
+  { name: 'Attendance', href: '/dashboard/admin/attendance', icon: BarChart3 },
+  { name: 'Notifications', href: '/dashboard/admin/notifications', icon: Bell },
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ];
 

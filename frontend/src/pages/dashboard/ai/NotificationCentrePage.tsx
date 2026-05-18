@@ -1,6 +1,6 @@
 import {
   Home, Bell, BookOpen, Users, GraduationCap, CreditCard, Settings, Shield,
-  Check, Loader2, Mail, Trash2
+  Check, Loader2, Mail, Trash2, Calendar, Hash, Building2, BarChart3
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,11 @@ const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: Home },
   { name: 'Students', href: '/dashboard/admin/students', icon: GraduationCap },
   { name: 'Lecturers', href: '/dashboard/admin/lecturers', icon: Users },
-  { name: 'Departments', href: '/dashboard/admin/departments', icon: BookOpen },
+  { name: 'Departments', href: '/dashboard/admin/departments', icon: Building2 },
+  { name: 'Matric Config', href: '/dashboard/admin/matric-config', icon: Hash },
+  { name: 'Timetable', href: '/dashboard/admin/timetable', icon: Calendar },
+  { name: 'Subscription', href: '/dashboard/admin/subscription', icon: CreditCard },
+  { name: 'Attendance', href: '/dashboard/admin/attendance', icon: BarChart3 },
   { name: 'Notifications', href: '/dashboard/admin/notifications', icon: Bell },
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ];
