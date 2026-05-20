@@ -22,17 +22,28 @@ function formatTimeLeft(ms: number) {
   return `${m}:${s}`;
 }
 
+// Shape returned by GET /api/attendance/sessions/:sessionId/results
+// data: { sessionId, status, totalEnrolled, presentCount, absentCount, presentStudents, expiresAt }
+// Each item in presentStudents: { _id, matricNumber, user: { firstName, lastName } }
+interface PresentStudent {
+  _id?: string;
+  id?: string;
+  matricNumber?: string;
+  user?: { firstName?: string; lastName?: string };
+}
+
 export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
   const { toast } = useToast();
   const [duration, setDuration] = useState(10);
   const [starting, setStarting] = useState(false);
   const [ending, setEnding] = useState(false);
   const [session, setSession] = useState<any>(null);
-  const [results, setResults] = useState<any[]>([]);
+  const [presentStudents, setPresentStudents] = useState<PresentStudent[]>([]);
+  const [totalEnrolled, setTotalEnrolled] = useState(0);
   const [now, setNow] = useState(Date.now());
   const pollRef = useRef<number | null>(null);
 
-  // Detect existing active session for this course on mount / course change.
+  // Detect existing active session on mount / course change
   useEffect(() => {
     if (!courseId) return;
     let cancelled = false;
@@ -47,27 +58,36 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
         /* no active session */
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [courseId]);
 
-  // Tick + poll while session is active.
+  // Tick + poll while session is active
   useEffect(() => {
     if (!session) return;
+
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
+
     const fetchResults = async () => {
       try {
-        const sid = session._id ?? session.id;
+        const sid = session._id ?? session.id ?? session.sessionId;
+        if (!sid) return;
         const r = await attendanceService.getSessionResults(sid);
-        const list = r.data?.data?.records ?? r.data?.data ?? [];
-        setResults(Array.isArray(list) ? list : []);
+        const data = r.data?.data ?? {};
+
+        // Backend returns presentStudents array and totalEnrolled
+        const list: PresentStudent[] = Array.isArray(data.presentStudents)
+          ? data.presentStudents
+          : [];
+        setPresentStudents(list);
+        setTotalEnrolled(data.totalEnrolled ?? list.length);
       } catch {
-        /* ignore */
+        /* ignore poll failures */
       }
     };
+
     fetchResults();
     pollRef.current = window.setInterval(fetchResults, 10_000);
+
     return () => {
       window.clearInterval(tick);
       if (pollRef.current) window.clearInterval(pollRef.current);
@@ -89,6 +109,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
       });
       const data = r.data?.data ?? r.data;
       setSession(data);
+      setPresentStudents([]);
       toast({ title: 'Session started', description: `Open for ${duration} minutes.` });
     } catch (err: any) {
       toast({
@@ -104,19 +125,19 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
     if (!session) return;
     setEnding(true);
     try {
-      await attendanceService.endSession(session._id ?? session.id);
-      toast({ title: 'Session ended' });
+      await attendanceService.endSession(session._id ?? session.id ?? session.sessionId);
+      toast({ title: 'Session ended', description: `${presentStudents.length} students marked present.` });
       setSession(null);
-      setResults([]);
+      setPresentStudents([]);
+      setTotalEnrolled(0);
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message, variant: 'destructive' });
     }
     setEnding(false);
   };
 
-  const presentCount = results.filter(
-    (r) => r.status === 'present' || r.markedPresent || r.marked_present
-  ).length;
+  const getStudentName = (s: PresentStudent) =>
+    [s.user?.firstName, s.user?.lastName].filter(Boolean).join(' ') || 'Student';
 
   return (
     <Card>
@@ -127,21 +148,22 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
               <MapPin className="h-5 w-5 text-primary" /> Geofenced Attendance
             </CardTitle>
             <CardDescription>
-              Start a location-locked session — students within range can submit a selfie to
-              be marked present.
+              Start a location-locked session — students within range submit a selfie to be marked present.
               {courseLabel && <> · <span className="font-medium">{courseLabel}</span></>}
             </CardDescription>
           </div>
           {session && !expired && (
-            <Badge variant="default" className="gap-1">
+            <Badge variant="default" className="gap-1 flex-shrink-0">
               <Clock className="h-3 w-3" /> {formatTimeLeft(timeLeft)}
             </Badge>
           )}
           {session && expired && <Badge variant="secondary">Expired</Badge>}
         </div>
       </CardHeader>
+
       <CardContent className="space-y-4">
         {!session ? (
+          /* ── Start Form ── */
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="space-y-2">
               <label className="text-sm font-medium">Session duration</label>
@@ -167,6 +189,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
             </p>
           </div>
         ) : (
+          /* ── Active Session ── */
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="rounded-lg border p-3">
@@ -174,10 +197,17 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
                 <p className="text-2xl font-bold tabular-nums">{formatTimeLeft(timeLeft)}</p>
               </div>
               <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Submissions</p>
-                <p className="text-2xl font-bold">{presentCount}</p>
+                <p className="text-xs text-muted-foreground">Present</p>
+                <p className="text-2xl font-bold">
+                  {presentStudents.length}
+                  {totalEnrolled > 0 && (
+                    <span className="text-sm font-normal text-muted-foreground">
+                      {' '}/ {totalEnrolled}
+                    </span>
+                  )}
+                </p>
               </div>
-              <div className="rounded-lg border p-3 sm:col-span-1 col-span-2">
+              <div className="rounded-lg border p-3 col-span-2 sm:col-span-1">
                 <p className="text-xs text-muted-foreground">Status</p>
                 <p className="text-sm font-medium">{expired ? 'Expired' : 'Open'}</p>
               </div>
@@ -185,7 +215,9 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
 
             <div className="rounded-lg border">
               <div className="flex items-center justify-between border-b px-3 py-2">
-                <p className="text-sm font-medium">Marked present</p>
+                <p className="text-sm font-medium">
+                  Marked present ({presentStudents.length})
+                </p>
                 <Button
                   variant="destructive"
                   size="sm"
@@ -193,40 +225,37 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
                   disabled={ending}
                   className="gap-1"
                 >
-                  {ending ? <Loader2 className="h-4 w-4 animate-spin" /> : <StopCircle className="h-4 w-4" />}
+                  {ending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <StopCircle className="h-4 w-4" />
+                  )}
                   End Session
                 </Button>
               </div>
-              {results.length === 0 ? (
+
+              {presentStudents.length === 0 ? (
                 <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                   No submissions yet — share the session with your class.
                 </p>
               ) : (
-                <ul className="divide-y">
-                  {results.map((r, idx) => {
-                    const name =
-                      r.student?.user
-                        ? `${r.student.user.firstName ?? ''} ${r.student.user.lastName ?? ''}`.trim()
-                        : r.studentName ?? r.name ?? 'Student';
-                    const matric = r.student?.matricNumber ?? r.matricNumber ?? '';
-                    return (
-                      <li
-                        key={r._id ?? r.id ?? idx}
-                        className="flex items-center justify-between px-3 py-2 text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <UserCheck className="h-4 w-4 text-green-500" />
-                          <div>
-                            <p className="font-medium">{name}</p>
-                            {matric && <p className="text-xs text-muted-foreground">{matric}</p>}
-                          </div>
+                <ul className="divide-y max-h-64 overflow-y-auto">
+                  {presentStudents.map((s, idx) => (
+                    <li
+                      key={s._id ?? s.id ?? idx}
+                      className="flex items-center justify-between px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-green-500 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium">{getStudentName(s)}</p>
+                          {s.matricNumber && (
+                            <p className="text-xs text-muted-foreground">{s.matricNumber}</p>
+                          )}
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {r.markedAt ? new Date(r.markedAt).toLocaleTimeString() : ''}
-                        </span>
-                      </li>
-                    );
-                  })}
+                      </div>
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>
