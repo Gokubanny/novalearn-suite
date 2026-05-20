@@ -8,5 +8,5 @@ export const studentNavItems = [
   { name: 'Assignments', href: '/dashboard/student/assignments', icon: FileText },
   { name: 'Results', href: '/dashboard/student/results', icon: Trophy },
   { name: 'AI Assistant', href: '/dashboard/student/ai-assistant', icon: Brain, requiredPlan: 'pro' as const },
-  { name: 'Profile', href: '/dashboard/student/profile', icon: User },
+  // { name: 'Profile', href: '/dashboard/student/profile', icon: User },
 ];
