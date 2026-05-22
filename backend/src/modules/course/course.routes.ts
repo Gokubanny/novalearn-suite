@@ -10,17 +10,21 @@ import { UserRole } from '../../types';
 const router = Router();
 router.use(protect);
 
-// School admin
-router.get('/all', authorize(UserRole.SCHOOL_ADMIN), getAllCourses);
+// ── School Admin ──────────────────────────────────────────────────────────────
 router.delete('/:id', authorize(UserRole.SCHOOL_ADMIN, UserRole.LECTURER), deleteCourse);
 
-// Lecturer
+// ── Browse all courses — School Admin AND Students (for self-enrollment) ──────
+// Students need this to see available courses in their school before enrolling.
+// The controller already filters by req.user.school so data isolation is maintained.
+router.get('/all', authorize(UserRole.SCHOOL_ADMIN, UserRole.STUDENT), getAllCourses);
+
+// ── Lecturer ──────────────────────────────────────────────────────────────────
 router.post('/', authorize(UserRole.LECTURER), createCourse);
 router.get('/my-courses', authorize(UserRole.LECTURER), getLecturerCourses);
-router.get('/:courseId/students', authorize(UserRole.LECTURER), getCourseStudents);
+router.get('/:courseId/students', authorize(UserRole.LECTURER, UserRole.SCHOOL_ADMIN), getCourseStudents);
 router.patch('/:id', authorize(UserRole.LECTURER), updateCourse);
 
-// Student
+// ── Student ───────────────────────────────────────────────────────────────────
 router.get('/enrolled', authorize(UserRole.STUDENT), getStudentCourses);
 router.post('/:courseId/enrol', authorize(UserRole.STUDENT), enrolInCourse);
 router.delete('/:courseId/drop', authorize(UserRole.STUDENT), dropCourse);
