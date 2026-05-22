@@ -59,8 +59,13 @@ export const getStudentCourses = async (req: AuthRequest, res: Response): Promis
     _id: { $in: student.enrolledCourses },
     isActive: true,
   })
-    .populate('lecturer', 'staffId title')
-    .populate('department', 'name code');
+    .populate({
+      path: 'lecturer',
+      populate: { path: 'user', select: 'firstName lastName' }
+    })
+    .populate('department', 'name code')
+    .populate('materials')
+    .populate('enrolledStudents');
 
   res.status(200).json({ success: true, message: 'Enrolled courses fetched.', data: courses });
 };
