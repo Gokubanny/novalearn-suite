@@ -13,7 +13,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-
 export const uploadMaterial = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { courseId } = req.params;
@@ -32,12 +31,34 @@ export const uploadMaterial = async (req: AuthRequest, res: Response, next: Next
       }
     }
 
-    const result = await cloudinary.uploader.upload(req.file.path, {
+    // Determine resource type based on file mimetype
+    const isPDF = req.file.mimetype === 'application/pdf';
+    const isImage = req.file.mimetype.startsWith('image/');
+    const isVideo = req.file.mimetype.startsWith('video/');
+    
+    let resourceType: 'auto' | 'raw' | 'image' | 'video' = 'auto';
+    let uploadOptions: any = {
       folder: `courses/${courseId}/materials`,
-      resource_type: 'auto',
       use_filename: true,
       unique_filename: true,
-    });
+    };
+
+    if (isPDF) {
+      resourceType = 'raw';
+      // For PDFs, use raw upload type
+      uploadOptions.resource_type = 'raw';
+      uploadOptions.flags = 'attachment';
+    } else if (isImage) {
+      resourceType = 'image';
+      uploadOptions.resource_type = 'image';
+    } else if (isVideo) {
+      resourceType = 'video';
+      uploadOptions.resource_type = 'video';
+    } else {
+      uploadOptions.resource_type = 'auto';
+    }
+
+    const result = await cloudinary.uploader.upload(req.file.path, uploadOptions);
 
     // Delete local file after upload
     try {
@@ -46,16 +67,24 @@ export const uploadMaterial = async (req: AuthRequest, res: Response, next: Next
       console.log('Could not delete local file:', err);
     }
 
+    // Build the correct URL for PDFs
+    let fileUrl = result.secure_url;
+    if (isPDF) {
+      // For raw PDFs, ensure proper URL format
+      fileUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${result.public_id}.pdf`;
+    }
+
     const material = await Material.create({
       course: courseId,
       uploadedBy: req.user!.id,
       title,
       description,
-      fileUrl: result.secure_url,
+      fileUrl: fileUrl,
       fileName: req.file.originalname,
       fileType: req.file.mimetype,
       fileSize: req.file.size,
       cloudinaryPublicId: result.public_id,
+      resourceType: resourceType,
     });
 
     res.status(201).json({ success: true, data: material });
@@ -84,7 +113,8 @@ export const deleteMaterial = async (req: AuthRequest, res: Response, next: Next
     // Delete from Cloudinary if we have the public ID
     if (m.cloudinaryPublicId) {
       try {
-        await cloudinary.uploader.destroy(m.cloudinaryPublicId);
+        const resourceType = (m as any).resourceType || 'raw';
+        await cloudinary.uploader.destroy(m.cloudinaryPublicId, { resource_type: resourceType });
       } catch (err) {
         console.log('Could not delete from Cloudinary:', err);
       }
