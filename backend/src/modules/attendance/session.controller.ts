@@ -188,8 +188,8 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
     if (result.marked_present) {
       // Add to session's present students list
       await AttendanceSession.findByIdAndUpdate(sessionId, {
-        $addToSet: { presentStudents: student._id },
-        $addToSet: { submittedStudents: student._id },
+        // ✅ CORRECT - single $addToSet object with multiple properties
+        $addToSet: { presentStudents: student._id, submittedStudents: student._id }
       });
     } else {
       // Still add to submitted students even if not present (for tracking)
