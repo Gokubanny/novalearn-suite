@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Upload, Download, Loader2, Trash2, Eye, X } from 'lucide-react';
+import { FileText, Upload, Download, Loader2, Trash2, Eye } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,12 +36,11 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function getFileType(fileName: string): 'pdf' | 'image' | 'video' | 'document' | 'other' {
+function getFileType(fileName: string): 'pdf' | 'image' | 'video' | 'other' {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   if (ext === 'pdf') return 'pdf';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
   if (['mp4', 'webm', 'mov', 'avi'].includes(ext)) return 'video';
-  if (['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt'].includes(ext)) return 'document';
   return 'other';
 }
 
@@ -68,7 +67,7 @@ export function CourseMaterials({ courseId, courseName, canUpload }: CourseMater
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [courseId]);
+  useEffect(() => { load(); }, [courseId]);
 
   const handleUpload = async () => {
     if (!file || !title) {
@@ -98,108 +97,9 @@ export function CourseMaterials({ courseId, courseName, canUpload }: CourseMater
     }
   };
 
-  const renderPreview = () => {
-    if (!previewMaterial) return null;
-
-    const fileType = getFileType(previewMaterial.fileName);
-    const isGoogleViewable = ['pdf', 'document'].includes(fileType);
-
-    return (
-      <Dialog open={!!previewMaterial} onOpenChange={() => setPreviewMaterial(null)}>
-        <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between pr-6">
-              <span className="truncate">{previewMaterial.title}</span>
-            </DialogTitle>
-            <DialogDescription>
-              {previewMaterial.description || 'No description provided'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 min-h-0 overflow-auto">
-            {fileType === 'pdf' && (
-              <iframe
-                src={`${previewMaterial.fileUrl}#toolbar=0`}
-                className="w-full h-[70vh] rounded-lg"
-                title={previewMaterial.title}
-              />
-            )}
-            
-            {fileType === 'image' && (
-              <div className="flex items-center justify-center p-4">
-                <img
-                  src={previewMaterial.fileUrl}
-                  alt={previewMaterial.title}
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
-                />
-              </div>
-            )}
-            
-            {fileType === 'video' && (
-              <video
-                controls
-                className="w-full max-h-[70vh] rounded-lg"
-                src={previewMaterial.fileUrl}
-              >
-                Your browser does not support the video tag.
-              </video>
-            )}
-            
-            {fileType === 'document' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-8 w-8 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{previewMaterial.fileName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatSize(previewMaterial.fileSize)}
-                      </p>
-                    </div>
-                  </div>
-                  <Button asChild variant="outline">
-                    <a href={previewMaterial.fileUrl} download={previewMaterial.fileName}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download to view
-                    </a>
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground text-center">
-                  This file type cannot be previewed directly. Please download to view.
-                </p>
-              </div>
-            )}
-            
-            {fileType === 'other' && (
-              <div className="flex flex-col items-center justify-center p-8 space-y-4">
-                <FileText className="h-16 w-16 text-muted-foreground" />
-                <p className="text-center text-muted-foreground">
-                  This file type cannot be previewed.
-                </p>
-                <Button asChild variant="outline">
-                  <a href={previewMaterial.fileUrl} download={previewMaterial.fileName}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download {previewMaterial.fileName}
-                  </a>
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewMaterial(null)}>
-              Close
-            </Button>
-            <Button asChild variant="default">
-              <a href={previewMaterial.fileUrl} download={previewMaterial.fileName}>
-                <Download className="h-4 w-4 mr-2" />
-                Download
-              </a>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
+  const handlePreview = (material: Material) => {
+    // Open in new tab for better PDF viewing
+    window.open(material.fileUrl, '_blank');
   };
 
   return (
@@ -257,7 +157,7 @@ export function CourseMaterials({ courseId, courseName, canUpload }: CourseMater
             <div className="space-y-2">
               {materials.map((m) => {
                 const fileType = getFileType(m.fileName);
-                const canPreview = ['pdf', 'image', 'video'].includes(fileType);
+                const canPreview = fileType === 'pdf' || fileType === 'image' || fileType === 'video';
                 
                 return (
                   <div key={m.id} className="flex items-center gap-3 p-3 rounded-lg border bg-background hover:bg-muted/50 transition">
@@ -276,8 +176,8 @@ export function CourseMaterials({ courseId, courseName, canUpload }: CourseMater
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setPreviewMaterial(m)}
-                          title="Preview"
+                          onClick={() => handlePreview(m)}
+                          title="Open in new tab"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -300,7 +200,6 @@ export function CourseMaterials({ courseId, courseName, canUpload }: CourseMater
           )}
         </CardContent>
       </Card>
-      {renderPreview()}
     </>
   );
 }

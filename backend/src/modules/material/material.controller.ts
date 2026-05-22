@@ -41,11 +41,12 @@ export const uploadMaterial = async (req: AuthRequest, res: Response, next: Next
       folder: `courses/${courseId}/materials`,
       use_filename: true,
       unique_filename: true,
+      access_mode: 'public', // ← MAKE ALL FILES PUBLIC
+      type: 'upload',        // ← STANDARD UPLOAD TYPE
     };
 
     if (isPDF) {
       resourceType = 'raw';
-      // For PDFs, use raw upload type
       uploadOptions.resource_type = 'raw';
       uploadOptions.flags = 'attachment';
     } else if (isImage) {
@@ -67,12 +68,8 @@ export const uploadMaterial = async (req: AuthRequest, res: Response, next: Next
       console.log('Could not delete local file:', err);
     }
 
-    // Build the correct URL for PDFs
-    let fileUrl = result.secure_url;
-    if (isPDF) {
-      // For raw PDFs, ensure proper URL format
-      fileUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${result.public_id}.pdf`;
-    }
+    // Use the secure URL directly from Cloudinary
+    const fileUrl = result.secure_url;
 
     const material = await Material.create({
       course: courseId,
@@ -110,7 +107,6 @@ export const deleteMaterial = async (req: AuthRequest, res: Response, next: Next
       throw new AppError('Not authorized.', 403);
     }
     
-    // Delete from Cloudinary if we have the public ID
     if (m.cloudinaryPublicId) {
       try {
         const resourceType = (m as any).resourceType || 'raw';

@@ -11,7 +11,7 @@ export interface IMaterial extends Document {
   fileType: string;
   fileSize: number;
   cloudinaryPublicId?: string;
-  resourceType?: string; // Add this field
+  resourceType?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +27,7 @@ const MaterialSchema = new Schema<IMaterial>(
     fileType: { type: String, required: true },
     fileSize: { type: Number, required: true },
     cloudinaryPublicId: { type: String },
-    resourceType: { type: String, default: 'raw' }, // Add this
+    resourceType: { type: String, default: 'raw' },
   },
   { timestamps: true }
 );
