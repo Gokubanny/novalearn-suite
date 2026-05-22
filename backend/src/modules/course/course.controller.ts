@@ -63,9 +63,9 @@ export const getStudentCourses = async (req: AuthRequest, res: Response): Promis
       path: 'lecturer',
       populate: { path: 'user', select: 'firstName lastName' }
     })
-    .populate('department', 'name code')
-    .populate('materials')
-    .populate('enrolledStudents');
+    .populate('department', 'name code');
+    // REMOVED: .populate('materials') - this field doesn't exist in Course schema
+    // REMOVED: .populate('enrolledStudents') - don't need this for student view
 
   res.status(200).json({ success: true, message: 'Enrolled courses fetched.', data: courses });
 };
@@ -86,7 +86,10 @@ export const getAllCourses = async (req: AuthRequest, res: Response): Promise<vo
 
   const [courses, total] = await Promise.all([
     Course.find(filter)
-      .populate('lecturer', 'staffId title')
+      .populate({
+        path: 'lecturer',
+        populate: { path: 'user', select: 'firstName lastName' }
+      })
       .populate('department', 'name code')
       .skip(skip).limit(limit).sort({ createdAt: -1 }),
     Course.countDocuments(filter),
