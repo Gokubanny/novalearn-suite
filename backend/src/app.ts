@@ -23,6 +23,13 @@ import { errorHandler, notFound } from './middleware/error.middleware';
 
 const app = express();
 
+// ── TRUST PROXY ────────────────────────────────────────────────────────────────
+// Required when deployed on Render (or any platform behind a reverse proxy).
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+// because the X-Forwarded-For header is set by Render's load balancer but
+// Express doesn't trust it by default.
+app.set('trust proxy', 1);
+
 // ── ENSURE UPLOADS DIR EXISTS ─────────────────────────────────────────────────
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -35,7 +42,6 @@ const allowedOrigins = process.env.FRONTEND_URL
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -46,7 +52,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));;
+}));
 
 // ── RATE LIMITING ─────────────────────────────────────────────────────────────
 const limiter = rateLimit({
@@ -58,7 +64,6 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Stricter limiter for auth routes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,

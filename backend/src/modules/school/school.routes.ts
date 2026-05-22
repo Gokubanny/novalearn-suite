@@ -10,6 +10,18 @@ import { uploadImage } from '../../middleware/upload.middleware';
 import { UserRole } from '../../types';
 
 const router = Router();
+
+// ── PUBLIC TO ALL AUTHENTICATED USERS ────────────────────────────────────────
+// Lecturers and students need to read departments (e.g. when creating a course
+// or registering). This must be defined BEFORE the router.use() admin guard.
+router.get(
+  '/departments',
+  protect,
+  authorize(UserRole.SCHOOL_ADMIN, UserRole.LECTURER, UserRole.STUDENT),
+  getDepartments
+);
+
+// ── SCHOOL ADMIN ONLY — applied to all routes below ──────────────────────────
 router.use(protect, authorize(UserRole.SCHOOL_ADMIN));
 
 // Dashboard
@@ -20,9 +32,8 @@ router.get('/profile', getSchoolProfile);
 router.patch('/profile', updateSchoolProfile);
 router.post('/logo', uploadImage.single('logo'), uploadSchoolLogo);
 
-// Departments
+// Departments (write operations — admin only)
 router.post('/departments', createDepartment);
-router.get('/departments', getDepartments);
 router.patch('/departments/:id', updateDepartment);
 router.delete('/departments/:id', deleteDepartment);
 
