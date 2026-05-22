@@ -138,6 +138,8 @@ export const getActiveSession = async (req: AuthRequest, res: Response): Promise
     success: true,
     message: 'Active session found.',
     data: {
+      _id: session._id,           // ← ADDED for frontend compatibility
+      id: session._id,            // ← ADDED for frontend compatibility
       sessionId: session._id,
       expiresAt: session.expiresAt,
       durationMinutes: session.durationMinutes,
@@ -187,6 +189,12 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
       // Add to session's present students list
       await AttendanceSession.findByIdAndUpdate(sessionId, {
         $addToSet: { presentStudents: student._id },
+        $addToSet: { submittedStudents: student._id },
+      });
+    } else {
+      // Still add to submitted students even if not present (for tracking)
+      await AttendanceSession.findByIdAndUpdate(sessionId, {
+        $addToSet: { submittedStudents: student._id },
       });
     }
 
@@ -198,6 +206,7 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
         locationValid: result.location_valid,
         distanceMetres: result.distance_metres,
         markedPresent: result.marked_present,
+        alreadySubmitted: result.already_submitted || false,
       },
     });
   } catch (error: any) {
