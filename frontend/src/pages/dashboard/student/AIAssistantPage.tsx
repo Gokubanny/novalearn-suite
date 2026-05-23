@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import {
-  Brain, Send, Sparkles, BookMarked, GraduationCap, Lightbulb,
+  Brain, Send, Sparkles, GraduationCap,
   Loader2, Upload, X, FileText, MessageSquare, List, RefreshCw,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
@@ -12,15 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSubscription } from '@/hooks/useSubscription';
-import { UpgradePrompt } from '@/components/dashboard/UpgradePrompt';
 import { studentNavItems } from '@/constants/studentNav';
 import { aiService } from '@/services/ai.service';
 import { useToast } from '@/hooks/use-toast';
 
 const navItems = studentNavItems;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 type Msg = { role: 'user' | 'assistant'; content: string };
 
 interface GeneratedQuestion {
@@ -30,7 +27,6 @@ interface GeneratedQuestion {
   explanation: string;
 }
 
-// ── Quick prompts ─────────────────────────────────────────────────────────────
 const suggestedPrompts = [
   'Explain binary search algorithm step by step',
   'Help me understand recursion with examples',
@@ -45,7 +41,7 @@ function ChatTab() {
     {
       role: 'assistant',
       content:
-        "Hello! I'm your NexfordEdu AI assistant powered by Groq. I can help you with coursework, explain concepts, and answer academic questions. How can I help you today?",
+        "Hello! I'm NexFord AI, powered by Groq. I can help you with coursework, explain concepts, and answer academic questions. How can I help you today?",
     },
   ]);
   const [input, setInput] = useState('');
@@ -59,16 +55,14 @@ function ChatTab() {
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;
     const userMsg: Msg = { role: 'user', content: text.trim() };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
-
     try {
-      // Build conversation history excluding the welcome message
-      const history = messages.slice(1).map((m) => ({ role: m.role, content: m.content }));
+      const history = messages.slice(1).map(m => ({ role: m.role, content: m.content }));
       const res = await aiService.chat(text.trim(), undefined, history);
       const answer = res.data?.data?.answer || 'Sorry, I could not generate a response.';
-      setMessages((prev) => [...prev, { role: 'assistant', content: answer }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
     } catch (err: any) {
       toast({
         title: 'AI Error',
@@ -81,12 +75,10 @@ function ChatTab() {
   };
 
   const clearChat = () => {
-    setMessages([
-      {
-        role: 'assistant',
-        content: "Chat cleared! I'm ready to help. What would you like to know?",
-      },
-    ]);
+    setMessages([{
+      role: 'assistant',
+      content: "Chat cleared! I'm ready to help. What would you like to know?",
+    }]);
   };
 
   return (
@@ -98,7 +90,7 @@ function ChatTab() {
               <Brain className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-base">NexfordEdu AI</CardTitle>
+              <CardTitle className="text-base">NexFord AI</CardTitle>
               <CardDescription className="text-xs">Powered by Groq (llama-3.3-70b)</CardDescription>
             </div>
           </div>
@@ -114,7 +106,6 @@ function ChatTab() {
         </div>
       </CardHeader>
 
-      {/* Messages */}
       <CardContent
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
@@ -154,10 +145,9 @@ function ChatTab() {
         )}
       </CardContent>
 
-      {/* Input */}
       <div className="p-4 border-t space-y-3">
         <div className="flex flex-wrap gap-2">
-          {suggestedPrompts.map((prompt) => (
+          {suggestedPrompts.map(prompt => (
             <Button
               key={prompt}
               variant="outline"
@@ -170,17 +160,11 @@ function ChatTab() {
             </Button>
           ))}
         </div>
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(input);
-          }}
-        >
+        <form className="flex gap-2" onSubmit={e => { e.preventDefault(); send(input); }}>
           <Input
             placeholder="Ask me anything about your coursework..."
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={e => setInput(e.target.value)}
             className="flex-1"
             disabled={isLoading}
           />
@@ -198,7 +182,6 @@ function PDFQATab() {
   const { toast } = useToast();
   const [pdf, setPdf] = useState<File | null>(null);
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<{ question: string; answer: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -207,14 +190,13 @@ function PDFQATab() {
     if (!pdf || !question.trim()) return;
     setIsLoading(true);
     try {
-      const convHistory = history.flatMap((h) => [
+      const convHistory = history.flatMap(h => [
         { role: 'user' as const, content: h.question },
         { role: 'assistant' as const, content: h.answer },
       ]);
       const res = await aiService.chatWithPDF(pdf, question.trim(), convHistory);
       const ans = res.data?.data?.answer || 'No answer generated.';
-      setHistory((prev) => [...prev, { question: question.trim(), answer: ans }]);
-      setAnswer(ans);
+      setHistory(prev => [...prev, { question: question.trim(), answer: ans }]);
       setQuestion('');
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message, variant: 'destructive' });
@@ -229,11 +211,7 @@ function PDFQATab() {
     try {
       const res = await aiService.summarisePDF(pdf);
       const summary = res.data?.data?.summary || 'No summary generated.';
-      setAnswer(summary);
-      setHistory((prev) => [
-        ...prev,
-        { question: '📋 Summarise this document', answer: summary },
-      ]);
+      setHistory(prev => [...prev, { question: '📋 Summarise this document', answer: summary }]);
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message, variant: 'destructive' });
     } finally {
@@ -243,7 +221,6 @@ function PDFQATab() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Left: Upload + Controls */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -252,7 +229,6 @@ function PDFQATab() {
           <CardDescription>Upload a course PDF and ask questions about it</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* File Upload */}
           <div
             className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
               pdf ? 'border-primary/40 bg-primary/5' : 'border-border hover:border-primary/40 hover:bg-muted/50'
@@ -263,19 +239,12 @@ function PDFQATab() {
               <div className="space-y-2">
                 <FileText className="h-8 w-8 text-primary mx-auto" />
                 <p className="font-medium text-sm">{pdf.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {(pdf.size / 1024 / 1024).toFixed(2)} MB
-                </p>
+                <p className="text-xs text-muted-foreground">{(pdf.size / 1024 / 1024).toFixed(2)} MB</p>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPdf(null);
-                    setHistory([]);
-                    setAnswer('');
-                  }}
+                  onClick={e => { e.stopPropagation(); setPdf(null); setHistory([]); }}
                 >
                   <X className="h-4 w-4 mr-1" /> Remove
                 </Button>
@@ -292,56 +261,41 @@ function PDFQATab() {
               type="file"
               accept=".pdf"
               className="hidden"
-              onChange={(e) => {
+              onChange={e => {
                 const f = e.target.files?.[0];
-                if (f) { setPdf(f); setHistory([]); setAnswer(''); }
+                if (f) { setPdf(f); setHistory([]); }
               }}
             />
           </div>
 
-          {/* Actions */}
           {pdf && (
             <>
-              <Button
-                variant="outline"
-                className="w-full gap-2"
-                onClick={handleSummarise}
-                disabled={isLoading}
-              >
+              <Button variant="outline" className="w-full gap-2" onClick={handleSummarise} disabled={isLoading}>
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 Summarise Document
               </Button>
-
               <div className="space-y-2">
                 <Label>Ask a question</Label>
                 <Textarea
                   placeholder="What is the main topic of chapter 2?"
                   value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
+                  onChange={e => setQuestion(e.target.value)}
                   rows={3}
                   disabled={isLoading}
                 />
-                <Button
-                  className="w-full gap-2"
-                  onClick={handleAsk}
-                  disabled={isLoading || !question.trim()}
-                >
+                <Button className="w-full gap-2" onClick={handleAsk} disabled={isLoading || !question.trim()}>
                   {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   Ask AI
                 </Button>
               </div>
             </>
           )}
-
           {!pdf && (
-            <div className="text-center py-4 text-sm text-muted-foreground">
-              Upload a PDF to get started
-            </div>
+            <p className="text-center py-4 text-sm text-muted-foreground">Upload a PDF to get started</p>
           )}
         </CardContent>
       </Card>
 
-      {/* Right: Q&A History */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -422,10 +376,10 @@ function PracticeQuestionsTab() {
             <div className="md:col-span-2 space-y-2">
               <Label>Topic</Label>
               <Input
-                placeholder="e.g. Data Structures, Thermodynamics, Marketing..."
+                placeholder="e.g. Data Structures, Thermodynamics..."
                 value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && generate()}
+                onChange={e => setTopic(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && generate()}
               />
             </div>
             <div className="space-y-2">
@@ -451,11 +405,7 @@ function PracticeQuestionsTab() {
               </Select>
             </div>
           </div>
-          <Button
-            className="mt-4 gap-2"
-            onClick={generate}
-            disabled={isLoading || !topic.trim()}
-          >
+          <Button className="mt-4 gap-2" onClick={generate} disabled={isLoading || !topic.trim()}>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Generate Questions
           </Button>
@@ -466,7 +416,7 @@ function PracticeQuestionsTab() {
         <div className="flex justify-center py-12">
           <div className="text-center space-y-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-            <p className="text-sm text-muted-foreground">Generating questions on "{topic}"...</p>
+            <p className="text-sm text-muted-foreground">Generating questions on "{topic}"…</p>
           </div>
         </div>
       )}
@@ -499,7 +449,7 @@ function PracticeQuestionsTab() {
                     variant="outline"
                     size="sm"
                     className="ml-8"
-                    onClick={() => setRevealed((r) => ({ ...r, [i]: true }))}
+                    onClick={() => setRevealed(r => ({ ...r, [i]: true }))}
                   >
                     Reveal Answer
                   </Button>
@@ -520,21 +470,6 @@ function PracticeQuestionsTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function StudentAIAssistantPage() {
-  const { plan, canAccess } = useSubscription();
-
-  if (!canAccess('ai_assistant')) {
-    return (
-      <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
-        <UpgradePrompt
-          feature="AI Study Assistant"
-          description="Get instant help with coursework, study plans, and academic questions using our Groq-powered AI assistant."
-          requiredPlan="pro"
-          currentPlan={plan}
-        />
-      </DashboardLayout>
-    );
-  }
-
   return (
     <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
       <div className="space-y-6">
@@ -545,18 +480,16 @@ export default function StudentAIAssistantPage() {
         <div>
           <h1 className="text-2xl font-bold">AI Learning Assistant</h1>
           <p className="text-muted-foreground">
-            Powered by Groq (llama-3.3-70b) — ask questions, analyse PDFs, and generate practice tests
+            Powered by Groq (llama-3.3-70b) — ask questions, analyse PDFs, generate practice tests
           </p>
         </div>
 
-        {/* Quick tools row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[
-            { icon: MessageSquare, label: 'General Chat', desc: 'Ask any academic question', tab: 'chat' },
-            { icon: FileText, label: 'PDF Q&A', desc: 'Upload & query your notes', tab: 'pdf' },
-            { icon: List, label: 'Practice Quiz', desc: 'AI-generated MCQs', tab: 'questions' },
-            { icon: GraduationCap, label: 'Topics', desc: 'From your enrolled courses', tab: 'chat' },
-          ].map((item) => (
+            { icon: MessageSquare, label: 'General Chat',      desc: 'Ask any academic question' },
+            { icon: FileText,      label: 'PDF Q&A',           desc: 'Upload & query your notes'  },
+            { icon: List,          label: 'Practice Quiz',     desc: 'AI-generated MCQs'          },
+          ].map(item => (
             <Card key={item.label} className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/30">
               <CardContent className="pt-4 pb-3 text-center">
                 <item.icon className="h-6 w-6 text-primary mx-auto mb-2" />
@@ -569,28 +502,14 @@ export default function StudentAIAssistantPage() {
 
         <Tabs defaultValue="chat">
           <TabsList>
-            <TabsTrigger value="chat" className="gap-2">
-              <MessageSquare className="h-4 w-4" /> General Chat
-            </TabsTrigger>
-            <TabsTrigger value="pdf" className="gap-2">
-              <FileText className="h-4 w-4" /> PDF Q&A
-            </TabsTrigger>
-            <TabsTrigger value="questions" className="gap-2">
-              <List className="h-4 w-4" /> Practice Questions
-            </TabsTrigger>
+            <TabsTrigger value="chat"      className="gap-2"><MessageSquare className="h-4 w-4" /> General Chat</TabsTrigger>
+            <TabsTrigger value="pdf"       className="gap-2"><FileText      className="h-4 w-4" /> PDF Q&A</TabsTrigger>
+            <TabsTrigger value="questions" className="gap-2"><List          className="h-4 w-4" /> Practice Questions</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="chat" className="mt-4">
-            <ChatTab />
-          </TabsContent>
-
-          <TabsContent value="pdf" className="mt-4">
-            <PDFQATab />
-          </TabsContent>
-
-          <TabsContent value="questions" className="mt-4">
-            <PracticeQuestionsTab />
-          </TabsContent>
+          <TabsContent value="chat"      className="mt-4"><ChatTab /></TabsContent>
+          <TabsContent value="pdf"       className="mt-4"><PDFQATab /></TabsContent>
+          <TabsContent value="questions" className="mt-4"><PracticeQuestionsTab /></TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
