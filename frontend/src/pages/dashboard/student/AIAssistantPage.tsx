@@ -41,7 +41,7 @@ function ChatTab() {
     {
       role: 'assistant',
       content:
-        "Hello! I'm NexFord AI, powered by Groq. I can help you with coursework, explain concepts, and answer academic questions. How can I help you today?",
+        "Hello! I'm NexFord AI, I can help you with coursework, explain concepts, and answer academic questions. How can I help you today?",
     },
   ]);
   const [input, setInput] = useState('');
@@ -91,7 +91,6 @@ function ChatTab() {
             </div>
             <div>
               <CardTitle className="text-base">NexFord AI</CardTitle>
-              <CardDescription className="text-xs">Powered by Groq (llama-3.3-70b)</CardDescription>
             </div>
           </div>
           <div className="flex items-center gap-2">
