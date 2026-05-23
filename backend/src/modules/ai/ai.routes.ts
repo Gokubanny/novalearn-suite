@@ -3,15 +3,29 @@ import {
   chatWithPDF, chatGeneral, summarisePDF,
   generateQuestions, getPerformanceInsights,
   getChatHistory, saveChatHistory, clearChatHistory,
+  createPdfSession, getPdfSessions, getPdfSession,
+  chatWithPdfSession, deletePdfSession,
+  updateUserPreferences, getUserPreferences,
 } from './ai.controller';
 import { protect, authorize } from '../../middleware/auth.middleware';
-import { uploadPDF } from '../../middleware/upload.middleware';
+import { uploadPDF, uploadMultiplePDFs } from '../../middleware/upload.middleware';
 import { UserRole } from '../../types';
 
 const router = Router();
 router.use(protect, authorize(UserRole.STUDENT, UserRole.LECTURER));
 
-// ── AI features ───────────────────────────────────────────────────────────────
+// ── PDF Chat Sessions (NEW) ───────────────────────────────────────────────────
+router.post('/pdf-sessions', uploadMultiplePDFs.array('pdfs', 3), createPdfSession);
+router.get('/pdf-sessions', getPdfSessions);
+router.get('/pdf-sessions/:sessionId', getPdfSession);
+router.post('/pdf-sessions/:sessionId/chat', chatWithPdfSession);
+router.delete('/pdf-sessions/:sessionId', deletePdfSession);
+
+// ── User Preferences (NEW) ────────────────────────────────────────────────────
+router.get('/preferences', getUserPreferences);
+router.put('/preferences', updateUserPreferences);
+
+// ── Legacy AI features ────────────────────────────────────────────────────────
 router.post('/chat-pdf', uploadPDF.single('pdf'), chatWithPDF);
 router.post('/chat', chatGeneral);
 router.post('/summarise', uploadPDF.single('pdf'), summarisePDF);

@@ -1,6 +1,67 @@
 import api from '../lib/api';
 
+export interface PdfSession {
+  _id: string;
+  title: string;
+  pdfs: Array<{
+    name: string;
+    size: number;
+    uploadedAt: string;
+  }>;
+  messages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserPreferences {
+  learningStyle: {
+    difficultyPreference: 'easy' | 'medium' | 'hard';
+    explanationDetail: 'concise' | 'detailed' | 'comprehensive';
+    preferredSubjects: string[];
+    studyReminders: boolean;
+  };
+  aiSettings: {
+    responseTemperature: number;
+    maxTokens: number;
+    contextLength: number;
+  };
+}
+
 export const aiService = {
+  // ── PDF Chat Sessions (NEW) ────────────────────────────────────────────────
+  createPdfSession: (pdfs: File[], title?: string) => {
+    const formData = new FormData();
+    pdfs.forEach(pdf => formData.append('pdfs', pdf));
+    if (title) formData.append('title', title);
+    return api.post('/api/ai/pdf-sessions', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  getPdfSessions: () =>
+    api.get('/api/ai/pdf-sessions'),
+
+  getPdfSession: (sessionId: string) =>
+    api.get(`/api/ai/pdf-sessions/${sessionId}`),
+
+  chatWithPdfSession: (sessionId: string, question: string) =>
+    api.post(`/api/ai/pdf-sessions/${sessionId}/chat`, { question }),
+
+  deletePdfSession: (sessionId: string) =>
+    api.delete(`/api/ai/pdf-sessions/${sessionId}`),
+
+  // ── User Preferences (NEW) ─────────────────────────────────────────────────
+  getUserPreferences: () =>
+    api.get('/api/ai/preferences'),
+
+  updateUserPreferences: (preferences: Partial<UserPreferences>) =>
+    api.put('/api/ai/preferences', preferences),
+
+  // ── Legacy AI features ─────────────────────────────────────────────────────
   chatWithPDF: (pdf: File, question: string, conversationHistory?: any[]) => {
     const formData = new FormData();
     formData.append('pdf', pdf);

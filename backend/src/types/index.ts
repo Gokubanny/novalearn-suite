@@ -171,6 +171,7 @@ export interface IStudent extends Document {
   approvalStatus: ApprovalStatus;
   gpa?: number;
   cgpa?: number;
+  preferences?: Types.ObjectId;
   createdAt: Date;
 }
 

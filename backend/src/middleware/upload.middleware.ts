@@ -1,5 +1,6 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { Request } from 'express';
 import { AppError } from './error.middleware';
 
@@ -10,6 +11,21 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+// PDF storage for multiple files
+const pdfStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(process.cwd(), 'uploads', 'pdfs');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `pdf-${uniqueSuffix}.pdf`);
   },
 });
 
@@ -53,6 +69,12 @@ export const uploadPDF = multer({
   storage,
   fileFilter: pdfFilter,
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+});
+
+export const uploadMultiplePDFs = multer({
+  storage: pdfStorage,
+  fileFilter: pdfFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB per file
 });
 
 export const uploadAny = multer({

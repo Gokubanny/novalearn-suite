@@ -24,6 +24,7 @@ const StudentSchema = new Schema<IStudent>(
     },
     gpa: { type: Number, default: 0 },
     cgpa: { type: Number, default: 0 },
+    preferences: { type: Schema.Types.ObjectId, ref: 'UserPreferences' }, // ← ADD THIS
   },
   { timestamps: true }
 );
