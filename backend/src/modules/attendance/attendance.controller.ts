@@ -36,14 +36,34 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
     });
     formData.append('school_id', req.user?.school as string);
 
+    const faceServiceUrl = process.env.FACE_RECOGNITION_SERVICE_URL;
+    if (!faceServiceUrl) {
+      throw new AppError('Face recognition service URL not configured.', 500);
+    }
+
+    console.log(`Calling face service: ${faceServiceUrl}/recognize/class`);
+
     const faceResponse = await axios.post(
-      `${process.env.FACE_RECOGNITION_SERVICE_URL}/recognize`,
+      `${faceServiceUrl}/recognize/class`,
       formData,
-      { headers: formData.getHeaders(), timeout: 30000 }
+      { 
+        headers: { 
+          ...formData.getHeaders(),
+          'x-api-key': process.env.INTERNAL_API_KEY || ''
+        }, 
+        timeout: 60000
+      }
     );
 
     recognizedStudentIds = faceResponse.data.recognized_students || [];
-  } catch (error) {
+    console.log(`Recognized ${recognizedStudentIds.length} students`);
+  } catch (error: any) {
+    console.error('Facial recognition error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      code: error.code
+    });
     throw new AppError(
       'Facial recognition service unavailable. Please try manual attendance.',
       503
@@ -218,11 +238,28 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
     formData.append('student_id', student._id.toString());
     formData.append('school_id', req.user?.school as string);
 
+    const faceServiceUrl = process.env.FACE_RECOGNITION_SERVICE_URL;
+    if (!faceServiceUrl) {
+      console.error('FACE_RECOGNITION_SERVICE_URL environment variable is not set');
+      throw new AppError('Face recognition service not configured.', 500);
+    }
+
+    console.log(`Calling face service at: ${faceServiceUrl}/register`);
+    console.log(`Student ID: ${student._id}, School ID: ${req.user?.school}`);
+
     const response = await axios.post(
-      `${process.env.FACE_RECOGNITION_SERVICE_URL}/register`,
+      `${faceServiceUrl}/register`,
       formData,
-      { headers: formData.getHeaders(), timeout: 30000 }
+      { 
+        headers: { 
+          ...formData.getHeaders(),
+          'x-api-key': process.env.INTERNAL_API_KEY || ''
+        }, 
+        timeout: 60000
+      }
     );
+
+    console.log('Face service response:', response.data);
 
     const { face_encoding, image_url } = response.data;
 
@@ -236,7 +273,23 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
       message: 'Face registered successfully for attendance.',
       data: { faceImageUrl: image_url },
     });
-  } catch {
-    throw new AppError('Face registration failed. Please ensure your face is clearly visible.', 400);
+  } catch (error: any) {
+    // Log the actual error for debugging
+    console.error('Face registration error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      code: error.code
+    });
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      throw new AppError('Face recognition service is unavailable. Please try again later.', 503);
+    }
+    
+    if (error.response?.data?.detail) {
+      throw new AppError(`Face registration failed: ${error.response.data.detail}`, 400);
+    }
+    
+    throw new AppError('Face registration failed. Please ensure your face is clearly visible in good lighting.', 400);
   }
 };
