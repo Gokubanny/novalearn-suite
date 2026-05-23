@@ -5,14 +5,14 @@ import fs from 'fs';
 import { AuthRequest, UserRole } from '../../types';
 import { AppError } from '../../middleware/error.middleware';
 import Student from '../student/student.model';
+import AiChatHistory from './ai-chat-history.model';
 
-// Grok uses OpenAI-compatible API
 const grok = new OpenAI({
   apiKey: process.env.GROK_API_KEY || 'placeholder-key',
   baseURL: process.env.GROK_BASE_URL || 'https://api.x.ai/v1',
 });
 
-const MODEL = process.env.GROK_MODEL || 'grok-3-mini';
+const MODEL = process.env.GROK_MODEL || 'llama-3.3-70b-versatile';
 
 // ── CHAT WITH COURSE PDF ───────────────────────────────────────────────────────
 export const chatWithPDF = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -21,7 +21,6 @@ export const chatWithPDF = async (req: AuthRequest, res: Response): Promise<void
   if (!question) throw new AppError('Question is required.', 400);
   if (!req.file) throw new AppError('PDF file is required.', 400);
 
-  // Extract text from uploaded PDF
   let pdfText = '';
   try {
     const pdfBuffer = fs.readFileSync(req.file.path);
@@ -29,20 +28,14 @@ export const chatWithPDF = async (req: AuthRequest, res: Response): Promise<void
     pdfText = pdfData.text;
     fs.unlinkSync(req.file.path);
   } catch {
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     throw new AppError('Failed to read PDF file. Please ensure it is a valid PDF.', 400);
   }
 
-  if (!pdfText.trim()) {
-    throw new AppError('The PDF appears to be empty or could not be read.', 400);
-  }
+  if (!pdfText.trim()) throw new AppError('The PDF appears to be empty or could not be read.', 400);
 
-  // Limit PDF text to avoid token overload (approx 12000 words)
   const truncatedText = pdfText.slice(0, 48000);
 
-  // Build messages array
   const systemPrompt = `You are NexFord AI, an intelligent academic study assistant integrated into the NexFord Edu platform. 
 You help students understand their course materials by answering questions based ONLY on the provided document content.
 
@@ -63,10 +56,8 @@ ${truncatedText}
     { role: 'system', content: systemPrompt },
   ];
 
-  // Add conversation history if provided
   if (conversationHistory && Array.isArray(conversationHistory)) {
-    const historyMessages = conversationHistory.slice(-6); // Last 6 messages
-    historyMessages.forEach((msg: { role: string; content: string }) => {
+    conversationHistory.slice(-6).forEach((msg: { role: string; content: string }) => {
       if (msg.role === 'user' || msg.role === 'assistant') {
         messages.push({ role: msg.role, content: msg.content });
       }
@@ -79,7 +70,7 @@ ${truncatedText}
     model: MODEL,
     messages,
     max_tokens: 1024,
-    temperature: 0.3, // Low temperature for factual accuracy
+    temperature: 0.3,
   });
 
   const answer = completion.choices[0]?.message?.content || 'I could not generate a response.';
@@ -87,15 +78,11 @@ ${truncatedText}
   res.status(200).json({
     success: true,
     message: 'Response generated.',
-    data: {
-      question,
-      answer,
-      usage: completion.usage,
-    },
+    data: { question, answer, usage: completion.usage },
   });
 };
 
-// ── CHAT WITHOUT PDF (General academic question) ──────────────────────────────
+// ── CHAT WITHOUT PDF ──────────────────────────────────────────────────────────
 export const chatGeneral = async (req: AuthRequest, res: Response): Promise<void> => {
   const { question, subject, conversationHistory } = req.body;
 
@@ -113,8 +100,7 @@ If a question is not academic in nature, politely redirect to academic topics.`;
   ];
 
   if (conversationHistory && Array.isArray(conversationHistory)) {
-    const historyMessages = conversationHistory.slice(-8);
-    historyMessages.forEach((msg: { role: string; content: string }) => {
+    conversationHistory.slice(-10).forEach((msg: { role: string; content: string }) => {
       if (msg.role === 'user' || msg.role === 'assistant') {
         messages.push({ role: msg.role, content: msg.content });
       }
@@ -150,9 +136,7 @@ export const summarisePDF = async (req: AuthRequest, res: Response): Promise<voi
     pdfText = pdfData.text;
     fs.unlinkSync(req.file.path);
   } catch {
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     throw new AppError('Failed to read PDF.', 400);
   }
 
@@ -281,10 +265,47 @@ Keep the response warm, supportive, and practical.`,
   res.status(200).json({
     success: true,
     message: 'Performance insights generated.',
-    data: {
-      gpa: student.gpa,
-      cgpa: student.cgpa,
-      insights,
-    },
+    data: { gpa: student.gpa, cgpa: student.cgpa, insights },
   });
+};
+
+// ── GET CHAT HISTORY ──────────────────────────────────────────────────────────
+export const getChatHistory = async (req: AuthRequest, res: Response): Promise<void> => {
+  const history = await AiChatHistory.findOne({ user: req.user?.id });
+  res.status(200).json({
+    success: true,
+    data: history?.messages ?? [],
+  });
+};
+
+// ── SAVE CHAT HISTORY ─────────────────────────────────────────────────────────
+export const saveChatHistory = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { messages } = req.body;
+
+  if (!Array.isArray(messages)) throw new AppError('messages must be an array.', 400);
+
+  // Keep only the most recent 300 messages to cap document size
+  const trimmed = messages.slice(-300);
+
+  await AiChatHistory.findOneAndUpdate(
+    { user: req.user?.id },
+    {
+      user: req.user?.id,
+      school: req.user?.school,
+      messages: trimmed,
+    },
+    { upsert: true, new: true }
+  );
+
+  res.status(200).json({ success: true, message: 'History saved.' });
+};
+
+// ── CLEAR CHAT HISTORY ────────────────────────────────────────────────────────
+export const clearChatHistory = async (req: AuthRequest, res: Response): Promise<void> => {
+  await AiChatHistory.findOneAndUpdate(
+    { user: req.user?.id },
+    { messages: [] },
+    { upsert: true }
+  );
+  res.status(200).json({ success: true, message: 'History cleared.' });
 };

@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Fragment } from 'react';
 import {
-  Brain, Send, Sparkles, GraduationCap,
-  Loader2, Upload, X, FileText, MessageSquare, List, RefreshCw,
+  Brain, Send, Sparkles, Loader2, Upload, X,
+  FileText, MessageSquare, List, Trash2, Clock,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,13 +12,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { studentNavItems } from '@/constants/studentNav';
 import { aiService } from '@/services/ai.service';
 import { useToast } from '@/hooks/use-toast';
 
 const navItems = studentNavItems;
 
-type Msg = { role: 'user' | 'assistant'; content: string };
+// ── Types ─────────────────────────────────────────────────────────────────────
+type Msg = {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string; // ISO string
+};
 
 interface GeneratedQuestion {
   question: string;
@@ -27,46 +38,96 @@ interface GeneratedQuestion {
   explanation: string;
 }
 
-const suggestedPrompts = [
-  'Explain binary search algorithm step by step',
-  'Help me understand recursion with examples',
-  'What is the difference between TCP and UDP?',
-  'Explain polymorphism in OOP with examples',
-];
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatDateLabel(ts: string): string {
+  const d = new Date(ts);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+}
+
+function formatTime(ts: string): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const WELCOME_CONTENT =
+  "Hello! I'm NexFord AI, powered by Groq. I can help you with coursework, explain concepts, and answer academic questions. Your chat history is saved — pick up right where you left off. How can I help you today?";
 
 // ── Chat Tab ──────────────────────────────────────────────────────────────────
 function ChatTab() {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Msg[]>([
-    {
-      role: 'assistant',
-      content:
-        "Hello! I'm NexFord AI, I can help you with coursework, explain concepts, and answer academic questions. How can I help you today?",
-    },
-  ]);
+
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // ── Load history from backend on mount ────────────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await aiService.getChatHistory();
+        const saved: Msg[] = res.data?.data ?? [];
+        if (saved.length > 0) setMessages(saved);
+      } catch {
+        /* keep empty — welcome will show */
+      } finally {
+        setHistoryLoaded(true);
+      }
+    })();
+  }, []);
+
+  // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
+  // ── Send message ──────────────────────────────────────────────────────────
   const send = async (text: string) => {
     if (!text.trim() || isLoading) return;
-    const userMsg: Msg = { role: 'user', content: text.trim() };
-    setMessages(prev => [...prev, userMsg]);
+
+    const userMsg: Msg = {
+      role: 'user',
+      content: text.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const withUser = [...messages, userMsg];
+    setMessages(withUser);
     setInput('');
     setIsLoading(true);
+
     try {
-      const history = messages.slice(1).map(m => ({ role: m.role, content: m.content }));
-      const res = await aiService.chat(text.trim(), undefined, history);
-      const answer = res.data?.data?.answer || 'Sorry, I could not generate a response.';
-      setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+      // Send last 10 messages as context to Groq (keeps tokens low)
+      const contextHistory = withUser
+        .slice(-10)
+        .map(m => ({ role: m.role, content: m.content }));
+
+      const res = await aiService.chat(text.trim(), undefined, contextHistory);
+      const answer = res.data?.data?.answer ?? 'Sorry, I could not generate a response.';
+
+      const assistantMsg: Msg = {
+        role: 'assistant',
+        content: answer,
+        timestamp: new Date().toISOString(),
+      };
+
+      const final = [...withUser, assistantMsg];
+      setMessages(final);
+
+      // Fire-and-forget — save full history to backend
+      aiService.saveChatHistory(final).catch(() => {});
     } catch (err: any) {
       toast({
         title: 'AI Error',
-        description: err?.message || 'Failed to get a response. Please try again.',
+        description: err?.message ?? 'Failed to get a response. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -74,15 +135,34 @@ function ChatTab() {
     }
   };
 
-  const clearChat = () => {
-    setMessages([{
-      role: 'assistant',
-      content: "Chat cleared! I'm ready to help. What would you like to know?",
-    }]);
+  // ── Clear history ─────────────────────────────────────────────────────────
+  const handleClear = async () => {
+    setClearing(true);
+    try {
+      await aiService.clearChatHistory();
+      setMessages([]);
+      toast({ title: 'Chat history cleared' });
+    } catch {
+      toast({ title: 'Could not clear history', variant: 'destructive' });
+    } finally {
+      setClearing(false);
+    }
   };
 
+  // What to display — show welcome only when no real history exists yet
+  const displayMessages: Msg[] =
+    messages.length === 0 && historyLoaded
+      ? [{ role: 'assistant', content: WELCOME_CONTENT, timestamp: new Date().toISOString() }]
+      : messages;
+
+  const showDateSeparator = (i: number) =>
+    i === 0 ||
+    new Date(displayMessages[i].timestamp).toDateString() !==
+      new Date(displayMessages[i - 1].timestamp).toDateString();
+
   return (
-    <Card className="flex flex-col" style={{ minHeight: '500px' }}>
+    <Card className="flex flex-col" style={{ minHeight: '560px' }}>
+      {/* ── Header ── */}
       <CardHeader className="border-b pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -91,84 +171,165 @@ function ChatTab() {
             </div>
             <div>
               <CardTitle className="text-base">NexFord AI</CardTitle>
+              <CardDescription className="text-xs flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {messages.length > 0
+                  ? `${messages.length} message${messages.length !== 1 ? 's' : ''} in history`
+                  : 'No history yet'}
+              </CardDescription>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
               Live
             </Badge>
-            <Button variant="ghost" size="sm" onClick={clearChat} title="Clear chat">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+
+            {/* Clear history confirmation dialog */}
+            {messages.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" title="Clear chat history" disabled={clearing}>
+                    {clearing
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Trash2 className="h-4 w-4 text-muted-foreground" />}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Clear chat history?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all {messages.length} messages in your chat history.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleClear}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Clear History
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
       </CardHeader>
 
+      {/* ── Messages ── */}
       <CardContent
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{ maxHeight: '420px' }}
+        className="flex-1 overflow-y-auto p-4 space-y-1"
+        style={{ maxHeight: '460px' }}
       >
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            {msg.role === 'assistant' && (
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
-                <Brain className="h-3.5 w-3.5 text-primary" />
+        {!historyLoaded ? (
+          <div className="flex items-center justify-center h-full py-12">
+            <div className="text-center space-y-2">
+              <Loader2 className="h-6 w-6 animate-spin text-primary mx-auto" />
+              <p className="text-xs text-muted-foreground">Loading your chat history…</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {displayMessages.map((msg, i) => (
+              <Fragment key={i}>
+                {/* ── Date separator ── */}
+                {showDateSeparator(i) && (
+                  <div className="flex items-center gap-2 py-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-[11px] text-muted-foreground px-2 font-medium">
+                      {formatDateLabel(msg.timestamp)}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+
+                {/* ── Message bubble ── */}
+                <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-3`}>
+                  {msg.role === 'assistant' && (
+                    <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mr-2 flex-shrink-0 mt-1">
+                      <Brain className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                  )}
+
+                  <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                    <div
+                      className={`rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                          : 'bg-muted rounded-tl-sm'
+                      }`}
+                    >
+                      {msg.content}
+                    </div>
+                    {/* ── Timestamp ── */}
+                    <span className="text-[10px] text-muted-foreground mt-1 px-1">
+                      {formatTime(msg.timestamp)}
+                    </span>
+                  </div>
+                </div>
+              </Fragment>
+            ))}
+
+            {/* ── Typing indicator ── */}
+            {isLoading && (
+              <div className="flex justify-start mb-3">
+                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mr-2 flex-shrink-0">
+                  <Brain className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
+                  <div className="flex gap-1 items-center h-4">
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
               </div>
             )}
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                  : 'bg-muted rounded-tl-sm'
-              }`}
-            >
-              {msg.content}
-            </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center mr-2 flex-shrink-0">
-              <Brain className="h-3.5 w-3.5 text-primary" />
-            </div>
-            <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex gap-1 items-center h-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-            </div>
-          </div>
+          </>
         )}
       </CardContent>
 
+      {/* ── Input ── */}
       <div className="p-4 border-t space-y-3">
         <div className="flex flex-wrap gap-2">
-          {suggestedPrompts.map(prompt => (
+          {[
+            'Explain binary search algorithm step by step',
+            'Help me understand recursion with examples',
+            'What is the difference between TCP and UDP?',
+            'Explain polymorphism in OOP with examples',
+          ].map(prompt => (
             <Button
               key={prompt}
               variant="outline"
               size="sm"
               className="text-xs h-7"
               onClick={() => send(prompt)}
-              disabled={isLoading}
+              disabled={isLoading || !historyLoaded}
             >
               {prompt}
             </Button>
           ))}
         </div>
-        <form className="flex gap-2" onSubmit={e => { e.preventDefault(); send(input); }}>
+        <form
+          className="flex gap-2"
+          onSubmit={e => { e.preventDefault(); send(input); }}
+        >
           <Input
-            placeholder="Ask me anything about your coursework..."
+            placeholder="Ask me anything about your coursework…"
             value={input}
             onChange={e => setInput(e.target.value)}
             className="flex-1"
-            disabled={isLoading}
+            disabled={isLoading || !historyLoaded}
           />
-          <Button size="icon" type="submit" disabled={isLoading || !input.trim()}>
-            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <Button size="icon" type="submit" disabled={isLoading || !input.trim() || !historyLoaded}>
+            {isLoading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <Send className="h-4 w-4" />}
           </Button>
         </form>
       </div>
@@ -485,9 +646,9 @@ export default function StudentAIAssistantPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[
-            { icon: MessageSquare, label: 'General Chat',      desc: 'Ask any academic question' },
-            { icon: FileText,      label: 'PDF Q&A',           desc: 'Upload & query your notes'  },
-            { icon: List,          label: 'Practice Quiz',     desc: 'AI-generated MCQs'          },
+            { icon: MessageSquare, label: 'General Chat', desc: 'Saved chat history'       },
+            { icon: FileText,      label: 'PDF Q&A',      desc: 'Upload & query your notes' },
+            { icon: List,          label: 'Practice Quiz', desc: 'AI-generated MCQs'        },
           ].map(item => (
             <Card key={item.label} className="hover:shadow-md transition-shadow cursor-pointer hover:border-primary/30">
               <CardContent className="pt-4 pb-3 text-center">
@@ -505,7 +666,6 @@ export default function StudentAIAssistantPage() {
             <TabsTrigger value="pdf"       className="gap-2"><FileText      className="h-4 w-4" /> PDF Q&A</TabsTrigger>
             <TabsTrigger value="questions" className="gap-2"><List          className="h-4 w-4" /> Practice Questions</TabsTrigger>
           </TabsList>
-
           <TabsContent value="chat"      className="mt-4"><ChatTab /></TabsContent>
           <TabsContent value="pdf"       className="mt-4"><PDFQATab /></TabsContent>
           <TabsContent value="questions" className="mt-4"><PracticeQuestionsTab /></TabsContent>

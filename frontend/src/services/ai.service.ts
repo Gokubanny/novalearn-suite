@@ -12,8 +12,10 @@ export const aiService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
   chat: (question: string, subject?: string, conversationHistory?: any[]) =>
     api.post('/api/ai/chat', { question, subject, conversationHistory }),
+
   summarisePDF: (pdf: File) => {
     const formData = new FormData();
     formData.append('pdf', pdf);
@@ -21,7 +23,20 @@ export const aiService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
   generateQuestions: (topic: string, difficulty: string, count: number) =>
     api.post('/api/ai/generate-questions', { topic, difficulty, count }),
-  getPerformanceInsights: () => api.get('/api/ai/performance-insights'),
+
+  getPerformanceInsights: () =>
+    api.get('/api/ai/performance-insights'),
+
+  // ── Persistent history ──────────────────────────────────────────────────────
+  getChatHistory: () =>
+    api.get('/api/ai/history'),
+
+  saveChatHistory: (messages: { role: string; content: string; timestamp: string }[]) =>
+    api.post('/api/ai/history', { messages }),
+
+  clearChatHistory: () =>
+    api.delete('/api/ai/history'),
 };
