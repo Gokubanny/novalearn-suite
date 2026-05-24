@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import TranscriptPage from '@/pages/dashboard/student/TranscriptPage';
+
 
 // Lazy load pages for better performance
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -171,6 +173,12 @@ const App = () => (
                   <StudentResultsPage />
                 </ProtectedRoute>
               } />
+              <Route path="/dashboard/student/transcript" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <TranscriptPage />
+                </ProtectedRoute>
+              } />
+            
               <Route path="/dashboard/student/ai-assistant" element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentAIAssistantPage />
