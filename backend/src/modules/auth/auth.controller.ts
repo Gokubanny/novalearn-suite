@@ -114,7 +114,7 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
     title,
     qualification,
     specialisation,
-    approvalStatus: ApprovalStatus.PENDING,
+    approvalStatus: ApprovalStatus.APPROVED,
   });
 
   await Notification.create({
