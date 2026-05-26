@@ -399,7 +399,7 @@ export default function TimetableManagementPage() {
                                   {isOnline ? ' · Online' : ` · ${entry.venue}`}
                                 </p>
                                 {isOnline && entry.zoomLink && (
-                                  
+                                  <a
                                     href={entry.zoomLink}
                                     target="_blank"
                                     rel="noreferrer"
