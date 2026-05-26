@@ -201,3 +201,30 @@ export const deleteCourse = async (req: AuthRequest, res: Response): Promise<voi
 
   res.status(200).json({ success: true, message: 'Course deactivated.' });
 };
+
+// ── UPDATE COURSE SCHEDULE (School Admin or owning Lecturer) ──────────────────
+export const updateCourseSchedule = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { courseId } = req.params;
+  const { schedule } = req.body;
+
+  if (!Array.isArray(schedule)) throw new AppError('schedule must be an array.', 400);
+
+  const isAdmin = req.user?.role === UserRole.SCHOOL_ADMIN;
+  const filter: Record<string, unknown> = { _id: courseId, school: req.user?.school };
+
+  // Lecturers can only edit their own courses
+  if (!isAdmin) {
+    const lecturer = await Lecturer.findOne({ user: req.user?.id, school: req.user?.school });
+    if (!lecturer) throw new AppError('Lecturer profile not found.', 404);
+    filter.lecturer = lecturer._id;
+  }
+
+  const course = await Course.findOneAndUpdate(
+    filter,
+    { schedule },
+    { new: true, runValidators: true }
+  );
+  if (!course) throw new AppError('Course not found or unauthorized.', 404);
+
+  res.status(200).json({ success: true, message: 'Schedule updated.', data: course });
+};
