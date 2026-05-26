@@ -3,15 +3,15 @@ import { ICourse, Semester, ClassType } from '../../types';
 
 const CourseSchema = new Schema<ICourse>(
   {
-    title: { type: String, required: true, trim: true },
-    code: { type: String, required: true, uppercase: true, trim: true },
-    school: { type: Schema.Types.ObjectId, ref: 'School', required: true },
+    title:      { type: String, required: true, trim: true },
+    code:       { type: String, required: true, uppercase: true, trim: true },
+    school:     { type: Schema.Types.ObjectId, ref: 'School',     required: true },
     department: { type: Schema.Types.ObjectId, ref: 'Department', required: true },
-    lecturer: { type: Schema.Types.ObjectId, ref: 'Lecturer', required: true },
-    creditUnits: { type: Number, required: true, min: 1, max: 6 },
-    semester: { type: String, enum: Object.values(Semester), required: true },
-    session: { type: String, required: true },
-    level: { type: Number, required: true, enum: [100, 200, 300, 400, 500] },
+    lecturer:   { type: Schema.Types.ObjectId, ref: 'Lecturer',   required: true },
+    creditUnits:{ type: Number, required: true, min: 1, max: 6 },
+    semester:   { type: String, enum: Object.values(Semester), required: true },
+    session:    { type: String, required: true },
+    level:      { type: Number, required: true, enum: [100, 200, 300, 400, 500] },
     classType: {
       type: String,
       enum: Object.values(ClassType),
@@ -25,8 +25,15 @@ const CourseSchema = new Schema<ICourse>(
           enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
         },
         startTime: { type: String },
-        endTime: { type: String },
-        venue: { type: String },
+        endTime:   { type: String },
+        venue:     { type: String },
+        // ← NEW: per-slot class type and zoom link
+        classType: {
+          type: String,
+          enum: ['physical', 'online'],
+          default: 'physical',
+        },
+        zoomLink: { type: String },
       },
     ],
     enrolledStudents: [{ type: Schema.Types.ObjectId, ref: 'Student' }],

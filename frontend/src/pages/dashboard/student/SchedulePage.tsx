@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Clock, MapPin, Loader2, Calendar, BookOpen } from 'lucide-react';
+import { Clock, MapPin, Loader2, Calendar, BookOpen, Video, ExternalLink } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { studentNavItems } from '@/constants/studentNav';
@@ -11,30 +12,33 @@ import { courseService } from '@/services/course.service';
 const navItems = studentNavItems;
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const WEEK_DAYS = DAYS.slice(1, 6); // Mon–Fri
+const WEEK_DAYS = DAYS.slice(1, 6);
 
 interface ClassEntry {
-  id: string;
-  dayIndex: number;
-  day: string;
-  startTime: string;
-  endTime: string;
-  venue: string | null;
-  courseCode: string;
+  id:          string;
+  dayIndex:    number;
+  day:         string;
+  startTime:   string;
+  endTime:     string;
+  venue:       string | null;
+  courseCode:  string;
   courseTitle: string;
+  classType:   'physical' | 'online';
+  zoomLink:    string;
 }
 
 function formatTime(t: string): string {
   if (!t) return '';
   const [h, m] = t.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, '0')} ${period}`;
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
 }
 
 function ClassCard({ entry, accent = false }: { entry: ClassEntry; accent?: boolean }) {
+  const isOnline = entry.classType === 'online';
   return (
-    <div className={`flex items-start gap-3 p-4 rounded-xl border transition-colors ${accent ? 'border-primary/30 bg-primary/5' : 'hover:bg-muted/50'}`}>
+    <div className={`flex items-start gap-3 p-4 rounded-xl border transition-colors ${
+      accent ? 'border-primary/30 bg-primary/5' : 'hover:bg-muted/50'
+    }`}>
       <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${accent ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
@@ -42,24 +46,48 @@ function ClassCard({ entry, accent = false }: { entry: ClassEntry; accent?: bool
             <p className="font-semibold text-sm">{entry.courseCode}</p>
             <p className="text-xs text-muted-foreground truncate">{entry.courseTitle}</p>
           </div>
-          {entry.venue && (
-            <Badge variant="outline" className="text-xs flex-shrink-0">
-              <MapPin className="h-2.5 w-2.5 mr-1" />{entry.venue}
-            </Badge>
-          )}
+          {/* Online / Physical badge */}
+          <Badge
+            variant="outline"
+            className={`text-xs flex-shrink-0 gap-1 ${
+              isOnline
+                ? 'border-blue-300 text-blue-700 dark:text-blue-400'
+                : 'border-green-300 text-green-700 dark:text-green-400'
+            }`}
+          >
+            {isOnline
+              ? <><Video className="h-2.5 w-2.5" /> Online</>
+              : <><MapPin className="h-2.5 w-2.5" /> {entry.venue || 'Physical'}</>}
+          </Badge>
         </div>
+
         <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
           <Clock className="h-3 w-3" />
           {formatTime(entry.startTime)} — {formatTime(entry.endTime)}
         </div>
+
+        {/* Zoom join button for online classes */}
+        {isOnline && entry.zoomLink && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+            asChild
+          >
+            <a href={entry.zoomLink} target="_blank" rel="noreferrer">
+              <Video className="h-3 w-3" /> Join Class
+              <ExternalLink className="h-2.5 w-2.5 ml-1" />
+            </a>
+          </Button>
+        )}
       </div>
     </div>
   );
 }
 
 export default function StudentSchedulePage() {
-  const [entries, setEntries]   = useState<ClassEntry[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [entries, setEntries] = useState<ClassEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchSchedule(); }, []);
 
@@ -82,6 +110,8 @@ export default function StudentSchedulePage() {
             venue:       s.venue     ?? null,
             courseCode:  c.code,
             courseTitle: c.title,
+            classType:   s.classType ?? 'physical',
+            zoomLink:    s.zoomLink  ?? '',
           });
         });
       });
@@ -95,13 +125,8 @@ export default function StudentSchedulePage() {
   const todayIndex   = new Date().getDay();
   const todayName    = DAYS[todayIndex];
   const todayClasses = entries.filter(e => e.dayIndex === todayIndex);
-
-  // Find next class today (by start time vs now)
-  const now = new Date();
-  const nowTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const nextClass = todayClasses.find(e => e.startTime > nowTime);
-
-  const totalClasses = entries.length;
+  const nowTime      = `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`;
+  const nextClass    = todayClasses.find(e => e.startTime > nowTime);
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Student Portal" accentColor="hsl(221, 83%, 53%)">
@@ -116,7 +141,7 @@ export default function StudentSchedulePage() {
             <p className="text-muted-foreground">Your weekly timetable from enrolled courses</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold">{totalClasses}</p>
+            <p className="text-2xl font-bold">{entries.length}</p>
             <p className="text-xs text-muted-foreground">classes/week</p>
           </div>
         </div>
@@ -128,10 +153,7 @@ export default function StudentSchedulePage() {
         ) : entries.length === 0 ? (
           <Card>
             <CardContent className="pt-6">
-              <EmptyState
-                title="No schedule found"
-                description="Enrol in courses that have timetable entries to see your schedule here."
-              />
+              <EmptyState title="No schedule found" description="Enrol in courses that have timetable entries to see your schedule here." />
             </CardContent>
           </Card>
         ) : (
@@ -141,7 +163,6 @@ export default function StudentSchedulePage() {
               <TabsTrigger value="week">Full Week</TabsTrigger>
             </TabsList>
 
-            {/* ── Today ── */}
             <TabsContent value="today" className="mt-4">
               <Card>
                 <CardHeader>
@@ -149,12 +170,11 @@ export default function StudentSchedulePage() {
                     <Calendar className="h-4 w-4" /> {todayName}
                   </CardTitle>
                   <CardDescription>
-                    {new Date().toLocaleDateString('en-US', {
-                      month: 'long', day: 'numeric', year: 'numeric',
-                    })}
+                    {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     {nextClass && (
                       <span className="ml-3 text-primary font-medium">
                         · Next: {nextClass.courseCode} at {formatTime(nextClass.startTime)}
+                        {nextClass.classType === 'online' ? ' (Online)' : ''}
                       </span>
                     )}
                   </CardDescription>
@@ -163,7 +183,7 @@ export default function StudentSchedulePage() {
                   {todayClasses.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground">
                       <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No classes scheduled for today.</p>
+                      <p className="text-sm">No classes today.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -176,7 +196,6 @@ export default function StudentSchedulePage() {
               </Card>
             </TabsContent>
 
-            {/* ── Full Week ── */}
             <TabsContent value="week" className="mt-4 space-y-3">
               {WEEK_DAYS.map(day => {
                 const dayClasses = entries.filter(e => e.day === day);
@@ -188,9 +207,7 @@ export default function StudentSchedulePage() {
                         <CardTitle className={`text-sm font-semibold ${isToday ? 'text-primary' : ''}`}>
                           {day}
                           {isToday && (
-                            <Badge className="ml-2 text-xs bg-primary/10 text-primary border-primary/20">
-                              Today
-                            </Badge>
+                            <Badge className="ml-2 text-xs bg-primary/10 text-primary border-primary/20">Today</Badge>
                           )}
                         </CardTitle>
                         <span className="text-xs text-muted-foreground">
