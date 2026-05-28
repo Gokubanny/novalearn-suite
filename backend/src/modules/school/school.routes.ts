@@ -4,6 +4,7 @@ import {
   createDepartment, getDepartments, updateDepartment, deleteDepartment,
   getPendingStudents, getAllStudents, approveStudent, rejectStudent, suspendStudent,
   getPendingLecturers, getAllLecturers, approveLecturer, rejectLecturer,
+  getStudentProfile, getLecturerProfile,
 } from './school.controller';
 import { protect, authorize } from '../../middleware/auth.middleware';
 import { uploadImage } from '../../middleware/upload.middleware';
@@ -49,5 +50,9 @@ router.get('/lecturers/pending', getPendingLecturers);
 router.get('/lecturers', getAllLecturers);
 router.patch('/lecturers/:id/approve', approveLecturer);
 router.patch('/lecturers/:id/reject', rejectLecturer);
+
+// Individual profiles
+router.get('/students/:studentId/profile', getStudentProfile);
+router.get('/lecturers/:lecturerId/profile', getLecturerProfile);
 
 export default router;

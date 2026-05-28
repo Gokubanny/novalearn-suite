@@ -25,4 +25,10 @@ export const schoolService = {
   getAllLecturers: () => api.get('/api/school/lecturers'),
   approveLecturer: (id: string) => api.patch(`/api/school/lecturers/${id}/approve`),
   rejectLecturer: (id: string) => api.patch(`/api/school/lecturers/${id}/reject`),
+  getStudentProfile: (studentId: string) =>
+    api.get(`/api/school/students/${studentId}/profile`),
+  
+  getLecturerProfile: (lecturerId: string) =>
+    api.get(`/api/school/lecturers/${lecturerId}/profile`),
 };
+

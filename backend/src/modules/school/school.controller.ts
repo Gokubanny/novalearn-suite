@@ -300,3 +300,34 @@ export const rejectLecturer = async (req: AuthRequest, res: Response): Promise<v
 
   res.status(200).json({ success: true, message: 'Lecturer rejected.' });
 };
+
+// ── GET SINGLE STUDENT PROFILE (School Admin) ─────────────────────────────────
+export const getStudentProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { studentId } = req.params;
+
+  const student = await Student.findOne({ _id: studentId, school: req.user?.school })
+    .populate('user', 'firstName lastName email phone profileImage createdAt')
+    .populate('department', 'name code')
+    .populate('enrolledCourses', 'title code creditUnits semester');
+
+  if (!student) throw new AppError('Student not found.', 404);
+
+  res.status(200).json({ success: true, message: 'Student profile fetched.', data: student });
+};
+
+// ── GET SINGLE LECTURER PROFILE (School Admin) ────────────────────────────────
+export const getLecturerProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { lecturerId } = req.params;
+
+  const lecturer = await Lecturer.findOne({ _id: lecturerId, school: req.user?.school })
+    .populate('user', 'firstName lastName email phone profileImage createdAt')
+    .populate('department', 'name code')
+    .populate({
+      path: 'courses',
+      select: 'title code creditUnits semester enrolledStudents',
+    });
+
+  if (!lecturer) throw new AppError('Lecturer not found.', 404);
+
+  res.status(200).json({ success: true, message: 'Lecturer profile fetched.', data: lecturer });
+};
