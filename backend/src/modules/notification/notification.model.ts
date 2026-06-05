@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import { INotification, NotificationType } from '../../types';
+import { emitToUser } from '../../realtime/socket';
 
 const NotificationSchema = new Schema<INotification>(
   {
@@ -20,5 +21,16 @@ const NotificationSchema = new Schema<INotification>(
 
 NotificationSchema.index({ recipient: 1, isRead: 1 });
 NotificationSchema.index({ recipient: 1, createdAt: -1 });
+
+// Emit realtime event to the recipient whenever a notification is created
+NotificationSchema.post('save', function (doc) {
+  try {
+    if (doc?.recipient) {
+      emitToUser(String(doc.recipient), 'notification:new', doc.toJSON());
+    }
+  } catch {
+    /* ignore — realtime is best-effort */
+  }
+});
 
 export default mongoose.model<INotification>('Notification', NotificationSchema);

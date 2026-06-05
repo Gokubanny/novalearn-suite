@@ -1,8 +1,10 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+import http from 'http';
 import app from './app';
 import connectDB from './config/db';
+import { initSocket } from './realtime/socket';
 
 const PORT = process.env.PORT || 5000;
 
@@ -10,7 +12,10 @@ const startServer = async (): Promise<void> => {
   try {
     await connectDB();
 
-    const server = app.listen(PORT, () => {
+    const httpServer = http.createServer(app);
+    initSocket(httpServer);
+
+    const server = httpServer.listen(PORT, () => {
       console.log('');
       console.log('╔════════════════════════════════════════╗');
       console.log('║        NexFord Edu API Server          ║');

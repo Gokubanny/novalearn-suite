@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import Notification from './notification.model';
 import { AuthRequest } from '../../types';
+import { emitToUser } from '../../realtime/socket';
 
 export const getMyNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
   const page = Number(req.query.page) || 1;
@@ -30,6 +31,7 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
     { _id: req.params.id, recipient: req.user?.id },
     { isRead: true }
   );
+  if (req.user?.id) emitToUser(req.user.id, 'notification:read', { id: req.params.id });
   res.status(200).json({ success: true, message: 'Marked as read.' });
 };
 
@@ -38,10 +40,12 @@ export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<vo
     { recipient: req.user?.id, isRead: false },
     { isRead: true }
   );
+  if (req.user?.id) emitToUser(req.user.id, 'notification:read-all', {});
   res.status(200).json({ success: true, message: 'All notifications marked as read.' });
 };
 
 export const deleteNotification = async (req: AuthRequest, res: Response): Promise<void> => {
   await Notification.findOneAndDelete({ _id: req.params.id, recipient: req.user?.id });
+  if (req.user?.id) emitToUser(req.user.id, 'notification:deleted', { id: req.params.id });
   res.status(200).json({ success: true, message: 'Notification deleted.' });
 };
