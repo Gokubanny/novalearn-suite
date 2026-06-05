@@ -32,8 +32,8 @@ const typeIcons: Record<string, typeof Bell> = {
 };
 
 export default function NotificationCentrePage() {
-  const { notifications, loading, unreadCount, markAsRead, markAllAsRead, remove } =
-    useNotifications(15000);
+  const { notifications, loading, unreadCount, isRealtime, markAsRead, markAllAsRead, remove } =
+    useNotifications();
 
   const renderNotification = (n: AppNotification) => {
     const Icon = typeIcons[n.type || 'info'] || Bell;
@@ -74,8 +74,14 @@ export default function NotificationCentrePage() {
             <h1 className="text-2xl font-bold flex items-center gap-2">
               Notification Centre
               {unreadCount > 0 && <Badge variant="destructive" className="text-xs">{unreadCount} new</Badge>}
+              <Badge variant={isRealtime ? 'default' : 'secondary'} className="text-xs">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${isRealtime ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
+                {isRealtime ? 'Live' : 'Polling'}
+              </Badge>
             </h1>
-            <p className="text-muted-foreground">Live updates · auto-refreshes every 15s</p>
+            <p className="text-muted-foreground">
+              {isRealtime ? 'Connected — updates stream instantly.' : 'Reconnecting… falling back to periodic refresh.'}
+            </p>
           </div>
           <Button variant="outline" size="sm" onClick={markAllAsRead}>
             <Check className="h-4 w-4 mr-1" /> Mark All Read

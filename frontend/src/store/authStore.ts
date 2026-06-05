@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../lib/api';
+import { disconnectSocket } from '../lib/socket';
 
 export type Role = 'super_admin' | 'school_admin' | 'lecturer' | 'student';
 
@@ -54,6 +55,7 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
       logout: () => {
+        disconnectSocket();
         localStorage.removeItem('nexford_token');
         localStorage.removeItem('nexford_user');
         set({ user: null, token: null, isAuthenticated: false });
