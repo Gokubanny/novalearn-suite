@@ -1,6 +1,14 @@
 import api from '../lib/api';
 
 export const schoolService = {
+  // ── Public (no auth — used during registration) ──────────────────────────────
+  searchSchools: (query: string) =>
+    api.get('/api/school/public/search', { params: { q: query } }),
+
+  getPublicDepartments: (schoolId: string) =>
+    api.get(`/api/school/public/${schoolId}/departments`),
+
+  // ── Authenticated ──────────────────────────────────────────────────────────
   getStats: () => api.get('/api/school/stats'),
   getProfile: () => api.get('/api/school/profile'),
   updateProfile: (data: any) => api.patch('/api/school/profile', data),
@@ -17,18 +25,16 @@ export const schoolService = {
     api.patch(`/api/school/departments/${id}`, data),
   getPendingStudents: () => api.get('/api/school/students/pending'),
   getAllStudents: (params?: any) => api.get('/api/school/students', { params }),
+  getStudentProfile: (studentId: string) =>
+    api.get(`/api/school/students/${studentId}/profile`),
   approveStudent: (id: string) => api.patch(`/api/school/students/${id}/approve`),
   rejectStudent: (id: string, reason: string) =>
     api.patch(`/api/school/students/${id}/reject`, { reason }),
   suspendStudent: (id: string) => api.patch(`/api/school/students/${id}/suspend`),
   getPendingLecturers: () => api.get('/api/school/lecturers/pending'),
   getAllLecturers: () => api.get('/api/school/lecturers'),
-  approveLecturer: (id: string) => api.patch(`/api/school/lecturers/${id}/approve`),
-  rejectLecturer: (id: string) => api.patch(`/api/school/lecturers/${id}/reject`),
-  getStudentProfile: (studentId: string) =>
-    api.get(`/api/school/students/${studentId}/profile`),
-  
   getLecturerProfile: (lecturerId: string) =>
     api.get(`/api/school/lecturers/${lecturerId}/profile`),
+  approveLecturer: (id: string) => api.patch(`/api/school/lecturers/${id}/approve`),
+  rejectLecturer: (id: string) => api.patch(`/api/school/lecturers/${id}/reject`),
 };
-

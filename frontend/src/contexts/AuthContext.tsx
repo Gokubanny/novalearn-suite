@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { authService } from '@/services/auth.service';
 
 export type UserRole = 'student' | 'lecturer' | 'admin' | 'super_admin';
+export type RegisterRole = 'student' | 'lecturer';
 
 export interface UserProfile {
   id: string;
@@ -31,16 +32,29 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
 
+// ── Registration payload — fields vary by role ────────────────────────────────
 interface RegisterData {
+  role: RegisterRole;
+
+  // Common
   email: string;
   password: string;
   firstName: string;
   lastName: string;
-  role: UserRole;
   phone?: string;
-  department?: string;
-  institution?: string;
-  school?: string;
+
+  // Picked via the school-search / department steps
+  schoolCode: string;
+  departmentId: string;
+
+  // Student-only
+  level?: number;
+  matricNumber?: string;
+
+  // Lecturer-only
+  title?: string;
+  qualification?: string;
+  specialisation?: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -116,22 +130,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ── Register — builds the correct payload shape per role ───────────────────
   const register = async (data: RegisterData) => {
     setIsLoading(true);
     try {
-      const payload = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        password: data.password,
-        phone: data.phone,
-        department: data.department,
-        school: data.school ?? data.institution,
-      };
       if (data.role === 'lecturer') {
-        await authService.registerLecturer(payload);
+        await authService.registerLecturer({
+          firstName:      data.firstName,
+          lastName:       data.lastName,
+          email:          data.email,
+          password:       data.password,
+          phone:          data.phone,
+          schoolCode:     data.schoolCode,
+          departmentId:   data.departmentId,
+          title:          data.title,
+          qualification:  data.qualification,
+          specialisation: data.specialisation,
+        });
       } else {
-        await authService.registerStudent(payload);
+        await authService.registerStudent({
+          firstName:    data.firstName,
+          lastName:     data.lastName,
+          email:        data.email,
+          password:     data.password,
+          phone:        data.phone,
+          schoolCode:   data.schoolCode,
+          departmentId: data.departmentId,
+          level:        data.level,
+          matricNumber: data.matricNumber,
+        });
       }
       setIsLoading(false);
       return { success: true };
