@@ -12,31 +12,42 @@ export const protect = async (
 
     if (
       req.headers.authorization &&
-      req.headers.authorization.startsWith('Bearer')
+      req.headers.authorization.startsWith('Bearer ')
     ) {
       token = req.headers.authorization.split(' ')[1];
     }
 
     if (!token) {
-      res.status(401).json({ success: false, message: 'Not authorized. No token provided.' });
+      res.status(401).json({
+        success: false,
+        message: 'Not authorized. No token provided.',
+      });
       return;
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as JwtPayload;
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      // Misconfigured server — don't leak the reason to clients
+      console.error('FATAL: JWT_SECRET environment variable is not set.');
+      res.status(500).json({ success: false, message: 'Server configuration error.' });
+      return;
+    }
+
+    const decoded = jwt.verify(token, secret) as JwtPayload;
 
     req.user = {
-      id: decoded.id,
-      role: decoded.role,
+      id:     decoded.id,
+      role:   decoded.role,
       school: decoded.school,
-      email: decoded.email,
+      email:  decoded.email,
     };
 
     next();
-  } catch (error) {
-    res.status(401).json({ success: false, message: 'Not authorized. Token invalid or expired.' });
+  } catch {
+    res.status(401).json({
+      success: false,
+      message: 'Not authorized. Token invalid or expired.',
+    });
   }
 };
 
@@ -46,7 +57,6 @@ export const authorize = (...roles: UserRole[]) => {
       res.status(401).json({ success: false, message: 'Not authorized.' });
       return;
     }
-
     if (!roles.includes(req.user.role)) {
       res.status(403).json({
         success: false,
@@ -54,19 +64,16 @@ export const authorize = (...roles: UserRole[]) => {
       });
       return;
     }
-
     next();
   };
 };
 
-// Ensure user belongs to the same school as the resource
 export const sameSchool = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ): void => {
   const schoolId = req.params.schoolId || req.body.school;
-
   if (
     req.user?.role !== UserRole.SUPER_ADMIN &&
     req.user?.school !== schoolId
@@ -77,6 +84,5 @@ export const sameSchool = (
     });
     return;
   }
-
   next();
 };

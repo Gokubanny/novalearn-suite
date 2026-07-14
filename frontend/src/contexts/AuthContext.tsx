@@ -32,26 +32,17 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-// ── Registration payload — fields vary by role ────────────────────────────────
 interface RegisterData {
   role: RegisterRole;
-
-  // Common
   email: string;
   password: string;
   firstName: string;
   lastName: string;
   phone?: string;
-
-  // Picked via the school-search / department steps
   schoolCode: string;
   departmentId: string;
-
-  // Student-only
   level?: number;
   matricNumber?: string;
-
-  // Lecturer-only
   title?: string;
   qualification?: string;
   specialisation?: string;
@@ -60,65 +51,103 @@ interface RegisterData {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_TOKEN = 'nexford_token';
-const STORAGE_USER = 'nexford_user';
+const STORAGE_USER  = 'nexford_user';
 
-// Backend uses 'school_admin'; the existing frontend uses 'admin' everywhere.
 function normalizeRole(role: string | undefined): UserRole {
   if (role === 'school_admin') return 'admin';
-  if (role === 'super_admin' || role === 'admin' || role === 'lecturer' || role === 'student') {
-    return role;
-  }
+  if (
+    role === 'super_admin' || role === 'admin' ||
+    role === 'lecturer'    || role === 'student'
+  ) return role;
   return 'student';
 }
 
 function mapServerUser(raw: any): UserProfile {
   return {
-    id: raw.id ?? raw._id ?? '',
-    userId: raw.id ?? raw._id ?? '',
-    email: raw.email ?? '',
-    role: normalizeRole(raw.role),
-    firstName: raw.firstName ?? raw.first_name ?? '',
-    lastName: raw.lastName ?? raw.last_name ?? '',
-    phone: raw.phone,
-    avatar: raw.profileImage ?? raw.avatar_url,
-    department: raw.department,
-    institution: raw.school?.name ?? raw.school,
-    institutionId: typeof raw.school === 'string' ? raw.school : raw.school?.id ?? raw.school?._id,
-    matricNumber: raw.matricNumber ?? raw.matric_number,
-    staffId: raw.staffId ?? raw.staff_id,
+    id:            raw.id          ?? raw._id        ?? '',
+    userId:        raw.id          ?? raw._id        ?? '',
+    email:         raw.email       ?? '',
+    role:          normalizeRole(raw.role),
+    firstName:     raw.firstName   ?? raw.first_name ?? '',
+    lastName:      raw.lastName    ?? raw.last_name  ?? '',
+    phone:         raw.phone,
+    avatar:        raw.profileImage ?? raw.avatar_url,
+    department:    raw.department,
+    institution:   raw.school?.name ?? (typeof raw.school === 'string' ? undefined : raw.school),
+    institutionId: typeof raw.school === 'string'
+      ? raw.school
+      : raw.school?._id ?? raw.school?.id,
+    matricNumber:  raw.matricNumber ?? raw.matric_number,
+    staffId:       raw.staffId     ?? raw.staff_id,
     approvalStatus: raw.approvalStatus ?? raw.status ?? 'approved',
-    createdAt: raw.createdAt ?? new Date().toISOString(),
+    createdAt:     raw.createdAt   ?? new Date().toISOString(),
   };
 }
 
+function clearStorage() {
+  localStorage.removeItem(STORAGE_TOKEN);
+  localStorage.removeItem(STORAGE_USER);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const [user, setUser]         = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // ── On mount: restore session from localStorage then verify the token ────────
   useEffect(() => {
-    const token = localStorage.getItem(STORAGE_TOKEN);
+    const token   = localStorage.getItem(STORAGE_TOKEN);
     const userRaw = localStorage.getItem(STORAGE_USER);
-    if (token && userRaw) {
-      try {
-        setUser(mapServerUser(JSON.parse(userRaw)));
-      } catch {
-        // ignore
-      }
+
+    if (!token || !userRaw) {
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
+
+    // Restore user from cache immediately so the UI doesn't flash a login page
+    try {
+      setUser(mapServerUser(JSON.parse(userRaw)));
+    } catch {
+      clearStorage();
+      setIsLoading(false);
+      return;
+    }
+
+    // Then verify the token is still valid against the server
+    // This catches expired tokens that are still in localStorage
+    authService.getMe()
+      .then(res => {
+        const data = res.data?.data;
+        if (data?.user) {
+          // Merge server-fresh user data
+          const merged = { ...data.user, ...data.profile };
+          setUser(mapServerUser(merged));
+          localStorage.setItem(STORAGE_USER, JSON.stringify(data.user));
+        }
+      })
+      .catch(() => {
+        // Token is invalid or expired — clear everything
+        clearStorage();
+        setUser(null);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
+  // ── Login ─────────────────────────────────────────────────────────────────────
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
       const response = await authService.login(email, password);
-      const payload: any = response.data;
-      const token = payload.token ?? payload.data?.token;
-      const rawUser = payload.data?.user ?? payload.user ?? payload.data;
+
+      // Backend shape: { success, message, token, data: { id, firstName, ... } }
+      const payload = response.data as any;
+      const token   = payload.token;       // token is at root level
+      const rawUser = payload.data;        // user fields are in data
+
       if (!token || !rawUser) {
         setIsLoading(false);
-        return { success: false, error: 'Invalid response from server' };
+        return { success: false, error: 'Invalid response from server. Please try again.' };
       }
+
       localStorage.setItem(STORAGE_TOKEN, token);
       localStorage.setItem(STORAGE_USER, JSON.stringify(rawUser));
       setUser(mapServerUser(rawUser));
@@ -126,11 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (err: any) {
       setIsLoading(false);
-      return { success: false, error: err?.message ?? 'Login failed' };
+      return { success: false, error: err?.message ?? 'Login failed. Check your credentials.' };
     }
   };
 
-  // ── Register — builds the correct payload shape per role ───────────────────
+  // ── Register ──────────────────────────────────────────────────────────────────
   const register = async (data: RegisterData) => {
     setIsLoading(true);
     try {
@@ -164,27 +193,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: true };
     } catch (err: any) {
       setIsLoading(false);
-      return { success: false, error: err?.message ?? 'Registration failed' };
+      return { success: false, error: err?.message ?? 'Registration failed.' };
     }
   };
 
+  // ── Logout ────────────────────────────────────────────────────────────────────
   const logout = async () => {
-    localStorage.removeItem(STORAGE_TOKEN);
-    localStorage.removeItem(STORAGE_USER);
+    clearStorage();
     setUser(null);
   };
 
+  // ── Reset password ────────────────────────────────────────────────────────────
   const resetPassword = async (email: string) => {
     try {
       await authService.forgotPassword(email);
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err?.message ?? 'Could not send reset email' };
+      return { success: false, error: err?.message ?? 'Could not send reset email.' };
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session: null, isLoading, login, register, logout, resetPassword }}>
+    <AuthContext.Provider
+      value={{ user, session: null, isLoading, login, register, logout, resetPassword }}
+    >
       {children}
     </AuthContext.Provider>
   );
