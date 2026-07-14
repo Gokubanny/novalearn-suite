@@ -14,7 +14,7 @@ import { getCurrentSession } from '../../utils/helpers';
 // ── HELPER: RETRY LOGIC WITH EXPONENTIAL BACKOFF ─────────────────────────────
 const axiosWithRetry = async (
   url: string,
-  data: FormData,
+  getFormData: () => FormData, // Now a function that returns fresh FormData
   headers: any,
   maxRetries: number = 3,
   initialDelay: number = 1000
@@ -25,21 +25,37 @@ const axiosWithRetry = async (
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempt ${attempt}/${maxRetries} calling face service...`);
-      const response = await axios.post(url, data, {
-        headers,
-        timeout: 60000
+      
+      // Create fresh FormData for each attempt
+      const formData = getFormData();
+      
+      const response = await axios.post(url, formData, {
+        headers: {
+          ...formData.getHeaders(),
+          ...headers
+        },
+        timeout: 30000 // Reduced to 30 seconds
       });
+      
       console.log(`Attempt ${attempt} succeeded!`);
       return response;
     } catch (error: any) {
       lastError = error;
       const isRateLimit = error.response?.status === 429;
+      const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
       const isServerError = error.response?.status >= 500;
       
-      // Only retry on rate limits (429) or server errors (5xx)
-      if ((isRateLimit || isServerError) && attempt < maxRetries) {
-        console.log(`Attempt ${attempt} failed with status ${error.response?.status}. Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+      console.log(`Attempt ${attempt} failed:`, {
+        status: error.response?.status,
+        code: error.code,
+        message: error.message
+      });
+      
+      // Only retry on rate limits (429), timeouts, or server errors (5xx)
+      if ((isRateLimit || isTimeout || isServerError) && attempt < maxRetries) {
+        const waitTime = delay + Math.random() * 500; // Add jitter
+        console.log(`Retrying in ${Math.round(waitTime)}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
         delay *= 2; // Exponential backoff: 1s, 2s, 4s
       } else {
         // If it's not a retryable error or we're out of retries, throw
@@ -69,13 +85,6 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
   // Call Python facial recognition microservice with retry
   let recognizedStudentIds: string[] = [];
   try {
-    const formData = new FormData();
-    formData.append('image', req.file.buffer, {
-      filename: 'attendance.jpg',
-      contentType: 'image/jpeg',
-    });
-    formData.append('school_id', req.user?.school as string);
-
     const faceServiceUrl = process.env.FACE_RECOGNITION_SERVICE_URL;
     if (!faceServiceUrl) {
       throw new AppError('Face recognition service URL not configured.', 500);
@@ -83,15 +92,25 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
 
     console.log(`Calling face service: ${faceServiceUrl}/recognize/class`);
 
+    // Function to create fresh FormData for each attempt
+    const getFormData = () => {
+      const formData = new FormData();
+      formData.append('image', req.file.buffer, {
+        filename: 'attendance.jpg',
+        contentType: 'image/jpeg',
+      });
+      formData.append('school_id', req.user?.school as string);
+      return formData;
+    };
+
     const faceResponse = await axiosWithRetry(
       `${faceServiceUrl}/recognize/class`,
-      formData,
+      getFormData,
       {
-        ...formData.getHeaders(),
         'x-api-key': process.env.INTERNAL_API_KEY || ''
       },
-      3, // max retries
-      1000 // initial delay in ms
+      2, // max retries (reduced to 2 for faster failure)
+      2000 // initial delay in ms
     );
 
     recognizedStudentIds = faceResponse.data.recognized_students || [];
@@ -109,6 +128,13 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
       throw new AppError(
         'Face recognition service is busy. Please wait a moment and try manual attendance.',
         429
+      );
+    }
+    
+    if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+      throw new AppError(
+        'Face recognition service is taking too long. Please try manual attendance.',
+        504
       );
     }
     
@@ -278,14 +304,6 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
 
   // Send face to Python service for encoding with retry logic
   try {
-    const formData = new FormData();
-    formData.append('image', req.file.buffer, {
-      filename: 'face.jpg',
-      contentType: 'image/jpeg',
-    });
-    formData.append('student_id', student._id.toString());
-    formData.append('school_id', req.user?.school as string);
-
     const faceServiceUrl = process.env.FACE_RECOGNITION_SERVICE_URL;
     if (!faceServiceUrl) {
       console.error('FACE_RECOGNITION_SERVICE_URL environment variable is not set');
@@ -295,16 +313,27 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
     console.log(`Calling face service at: ${faceServiceUrl}/register`);
     console.log(`Student ID: ${student._id}, School ID: ${req.user?.school}`);
 
-    // Use the retry helper
+    // Function to create fresh FormData for each attempt
+    const getFormData = () => {
+      const formData = new FormData();
+      formData.append('image', req.file.buffer, {
+        filename: 'face.jpg',
+        contentType: 'image/jpeg',
+      });
+      formData.append('student_id', student._id.toString());
+      formData.append('school_id', req.user?.school as string);
+      return formData;
+    };
+
+    // Use the retry helper with 2 retries
     const response = await axiosWithRetry(
       `${faceServiceUrl}/register`,
-      formData,
+      getFormData,
       {
-        ...formData.getHeaders(),
         'x-api-key': process.env.INTERNAL_API_KEY || ''
       },
-      3, // max retries
-      1000 // initial delay in ms
+      2, // max retries
+      2000 // initial delay in ms
     );
 
     console.log('Face service response:', response.data);
@@ -343,6 +372,13 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
       throw new AppError(
         'Face service is currently busy. Please wait 30 seconds and try again.',
         429
+      );
+    }
+    
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      throw new AppError(
+        'Face service is taking too long. Please try again with a smaller image.',
+        504
       );
     }
     
