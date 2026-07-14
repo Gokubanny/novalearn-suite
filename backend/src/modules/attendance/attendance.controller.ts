@@ -11,6 +11,46 @@ import {
 import { AppError } from '../../middleware/error.middleware';
 import { getCurrentSession } from '../../utils/helpers';
 
+// ── HELPER: RETRY LOGIC WITH EXPONENTIAL BACKOFF ─────────────────────────────
+const axiosWithRetry = async (
+  url: string,
+  data: FormData,
+  headers: any,
+  maxRetries: number = 3,
+  initialDelay: number = 1000
+): Promise<any> => {
+  let lastError: any;
+  let delay = initialDelay;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt}/${maxRetries} calling face service...`);
+      const response = await axios.post(url, data, {
+        headers,
+        timeout: 60000
+      });
+      console.log(`Attempt ${attempt} succeeded!`);
+      return response;
+    } catch (error: any) {
+      lastError = error;
+      const isRateLimit = error.response?.status === 429;
+      const isServerError = error.response?.status >= 500;
+      
+      // Only retry on rate limits (429) or server errors (5xx)
+      if ((isRateLimit || isServerError) && attempt < maxRetries) {
+        console.log(`Attempt ${attempt} failed with status ${error.response?.status}. Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff: 1s, 2s, 4s
+      } else {
+        // If it's not a retryable error or we're out of retries, throw
+        throw error;
+      }
+    }
+  }
+  
+  throw lastError;
+};
+
 // ── MARK ATTENDANCE (FACIAL RECOGNITION) ────────────────────────────────────
 export const markAttendanceFacial = async (req: AuthRequest, res: Response): Promise<void> => {
   const { courseId } = req.params;
@@ -26,7 +66,7 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
   }).populate('enrolledStudents');
   if (!course) throw new AppError('Course not found or unauthorized.', 404);
 
-  // Call Python facial recognition microservice
+  // Call Python facial recognition microservice with retry
   let recognizedStudentIds: string[] = [];
   try {
     const formData = new FormData();
@@ -43,16 +83,15 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
 
     console.log(`Calling face service: ${faceServiceUrl}/recognize/class`);
 
-    const faceResponse = await axios.post(
+    const faceResponse = await axiosWithRetry(
       `${faceServiceUrl}/recognize/class`,
       formData,
-      { 
-        headers: { 
-          ...formData.getHeaders(),
-          'x-api-key': process.env.INTERNAL_API_KEY || ''
-        }, 
-        timeout: 60000
-      }
+      {
+        ...formData.getHeaders(),
+        'x-api-key': process.env.INTERNAL_API_KEY || ''
+      },
+      3, // max retries
+      1000 // initial delay in ms
     );
 
     recognizedStudentIds = faceResponse.data.recognized_students || [];
@@ -64,6 +103,15 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
       status: error.response?.status,
       code: error.code
     });
+    
+    // Provide more specific error messages based on status code
+    if (error.response?.status === 429) {
+      throw new AppError(
+        'Face recognition service is busy. Please wait a moment and try manual attendance.',
+        429
+      );
+    }
+    
     throw new AppError(
       'Facial recognition service unavailable. Please try manual attendance.',
       503
@@ -228,7 +276,7 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
 
   if (!req.file) throw new AppError('No image uploaded.', 400);
 
-  // Send face to Python service for encoding
+  // Send face to Python service for encoding with retry logic
   try {
     const formData = new FormData();
     formData.append('image', req.file.buffer, {
@@ -247,21 +295,25 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
     console.log(`Calling face service at: ${faceServiceUrl}/register`);
     console.log(`Student ID: ${student._id}, School ID: ${req.user?.school}`);
 
-    const response = await axios.post(
+    // Use the retry helper
+    const response = await axiosWithRetry(
       `${faceServiceUrl}/register`,
       formData,
-      { 
-        headers: { 
-          ...formData.getHeaders(),
-          'x-api-key': process.env.INTERNAL_API_KEY || ''
-        }, 
-        timeout: 60000
-      }
+      {
+        ...formData.getHeaders(),
+        'x-api-key': process.env.INTERNAL_API_KEY || ''
+      },
+      3, // max retries
+      1000 // initial delay in ms
     );
 
     console.log('Face service response:', response.data);
 
     const { face_encoding, image_url } = response.data;
+
+    if (!face_encoding) {
+      throw new AppError('Face service did not return encoding. Please try again with a clearer image.', 400);
+    }
 
     await Student.findByIdAndUpdate(student._id, {
       faceEncoding: face_encoding,
@@ -282,8 +334,20 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
       code: error.code
     });
     
+    // Specific error messages based on error type
     if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
       throw new AppError('Face recognition service is unavailable. Please try again later.', 503);
+    }
+    
+    if (error.response?.status === 429) {
+      throw new AppError(
+        'Face service is currently busy. Please wait 30 seconds and try again.',
+        429
+      );
+    }
+    
+    if (error.response?.status === 503) {
+      throw new AppError('Face service is temporarily unavailable. Please try again later.', 503);
     }
     
     if (error.response?.data?.detail) {
