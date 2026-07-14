@@ -1,4 +1,7 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import School from '../school/school.model';
 import Department from '../department/department.model';
 import Student from '../student/student.model';
@@ -11,6 +14,667 @@ import { AppError } from '../../middleware/error.middleware';
 import { sendEmail, emailTemplates } from '../../utils/email';
 import { uploadImage } from '../../config/cloudinary';
 import fs from 'fs';
+
+// ── AUTHENTICATION FUNCTIONS ──────────────────────────────────────────────────
+
+// ── LOGIN ──────────────────────────────────────────────────────────────────────
+export const login = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide email and password'
+      });
+      return;
+    }
+
+    // Find user with password
+    const user = await User.findOne({ email }).select('+password');
+    
+    if (!user) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+      return;
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      res.status(401).json({
+        success: false,
+        message: 'Account is deactivated. Please contact support.'
+      });
+      return;
+    }
+
+    // Check password
+    const isPasswordMatch = await user.comparePassword(password);
+    if (!isPasswordMatch) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+      return;
+    }
+
+    // Check if user has been approved (for students and lecturers)
+    let approvalStatus = 'approved';
+    let profileData = null;
+
+    if (user.role === 'student') {
+      const student = await Student.findOne({ user: user._id });
+      if (student) {
+        approvalStatus = student.approvalStatus;
+        if (approvalStatus !== 'approved') {
+          res.status(401).json({
+            success: false,
+            message: `Your account is ${approvalStatus}. Please wait for approval.`
+          });
+          return;
+        }
+        profileData = student.toObject();
+      }
+    } else if (user.role === 'lecturer') {
+      const lecturer = await Lecturer.findOne({ user: user._id });
+      if (lecturer) {
+        approvalStatus = lecturer.approvalStatus;
+        if (approvalStatus !== 'approved') {
+          res.status(401).json({
+            success: false,
+            message: `Your account is ${approvalStatus}. Please wait for approval.`
+          });
+          return;
+        }
+        profileData = lecturer.toObject();
+      }
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    // Generate JWT
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET is not defined');
+    }
+
+    const token = jwt.sign(
+      { 
+        id: user._id, 
+        role: user.role, 
+        email: user.email,
+        school: profileData?.school || null
+      },
+      secret,
+      { expiresIn: '7d' }
+    );
+
+    // Prepare user data for response
+    const userData = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      profileImage: user.profileImage,
+      ...(profileData || {}),
+      approvalStatus
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      data: userData
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during login'
+    });
+  }
+};
+
+// ── REGISTER STUDENT ──────────────────────────────────────────────────────────
+export const registerStudent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
+      schoolCode,
+      departmentId,
+      level,
+      matricNumber,
+    } = req.body;
+
+    // Validate input
+    if (!firstName || !lastName || !email || !password || !schoolCode || !departmentId) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+      return;
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(409).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+      return;
+    }
+
+    // Find school
+    const school = await School.findOne({ code: schoolCode.toUpperCase(), isActive: true });
+    if (!school) {
+      res.status(404).json({
+        success: false,
+        message: 'School not found with this code'
+      });
+      return;
+    }
+
+    // Check department
+    const department = await Department.findOne({ _id: departmentId, school: school._id });
+    if (!department) {
+      res.status(404).json({
+        success: false,
+        message: 'Department not found'
+      });
+      return;
+    }
+
+    // Create user
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
+      role: 'student'
+    });
+
+    // Create student profile
+    const student = await Student.create({
+      user: user._id,
+      school: school._id,
+      department: departmentId,
+      level: level || 100,
+      matricNumber: matricNumber || `STU${Date.now().toString().slice(-6)}`,
+      approvalStatus: ApprovalStatus.PENDING
+    });
+
+    // Notify school admin
+    try {
+      await Notification.create({
+        recipient: school.admin,
+        school: school._id,
+        title: 'New Student Registration',
+        message: `${firstName} ${lastName} has registered as a student and needs approval.`,
+        type: NotificationType.INFO,
+      });
+    } catch (error) {
+      console.error('Failed to create notification:', error);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Student registered successfully. Please wait for approval.',
+      data: {
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+        },
+        student: {
+          id: student._id,
+          matricNumber: student.matricNumber,
+          approvalStatus: student.approvalStatus,
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration'
+    });
+  }
+};
+
+// ── REGISTER LECTURER ──────────────────────────────────────────────────────────
+export const registerLecturer = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
+      schoolCode,
+      departmentId,
+      title,
+      qualification,
+      specialisation,
+    } = req.body;
+
+    // Validate input
+    if (!firstName || !lastName || !email || !password || !schoolCode || !departmentId) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+      return;
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      res.status(409).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+      return;
+    }
+
+    // Find school
+    const school = await School.findOne({ code: schoolCode.toUpperCase(), isActive: true });
+    if (!school) {
+      res.status(404).json({
+        success: false,
+        message: 'School not found with this code'
+      });
+      return;
+    }
+
+    // Check department
+    const department = await Department.findOne({ _id: departmentId, school: school._id });
+    if (!department) {
+      res.status(404).json({
+        success: false,
+        message: 'Department not found'
+      });
+      return;
+    }
+
+    // Create user
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
+      role: 'lecturer'
+    });
+
+    // Create lecturer profile
+    const lecturer = await Lecturer.create({
+      user: user._id,
+      school: school._id,
+      department: departmentId,
+      title: title || 'Lecturer',
+      qualification: qualification || '',
+      specialisation: specialisation || '',
+      approvalStatus: ApprovalStatus.PENDING
+    });
+
+    // Notify school admin
+    try {
+      await Notification.create({
+        recipient: school.admin,
+        school: school._id,
+        title: 'New Lecturer Registration',
+        message: `${firstName} ${lastName} has registered as a lecturer and needs approval.`,
+        type: NotificationType.INFO,
+      });
+    } catch (error) {
+      console.error('Failed to create notification:', error);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Lecturer registered successfully. Please wait for approval.',
+      data: {
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+        },
+        lecturer: {
+          id: lecturer._id,
+          approvalStatus: lecturer.approvalStatus,
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration'
+    });
+  }
+};
+
+// ── FORGOT PASSWORD ──────────────────────────────────────────────────────────
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide email address'
+      });
+      return;
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'No user found with this email'
+      });
+      return;
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    user.passwordResetToken = resetTokenHash;
+    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save({ validateBeforeSave: false });
+
+    // Send email with reset link
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+    
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Password Reset Request',
+        html: emailTemplates.passwordReset(
+          user.firstName,
+          resetUrl
+        ),
+      });
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      // Reset token fields if email fails
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Could not send reset email. Please try again.'
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset email sent'
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error processing request'
+    });
+  }
+};
+
+// ── RESET PASSWORD ──────────────────────────────────────────────────────────
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 8) {
+      res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters'
+      });
+      return;
+    }
+
+    // Hash token
+    const resetTokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    const user = await User.findOne({
+      passwordResetToken: resetTokenHash,
+      passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
+      return;
+    }
+
+    // Update password
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error resetting password'
+    });
+  }
+};
+
+// ── CHANGE PASSWORD ──────────────────────────────────────────────────────────
+export const changePassword = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Not authenticated'
+      });
+      return;
+    }
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({
+        success: false,
+        message: 'Please provide current and new password'
+      });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters'
+      });
+      return;
+    }
+
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
+    }
+
+    const isPasswordMatch = await user.comparePassword(currentPassword);
+    if (!isPasswordMatch) {
+      res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+      return;
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error changing password'
+    });
+  }
+};
+
+// ── UPDATE PROFILE ──────────────────────────────────────────────────────────
+export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { firstName, lastName, phone } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Not authenticated'
+      });
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
+    }
+
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (phone) user.phone = phone;
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        profileImage: user.profileImage,
+      }
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error updating profile'
+    });
+  }
+};
+
+// ── GET ME ──────────────────────────────────────────────────────────────────
+export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Not authenticated'
+      });
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+      return;
+    }
+
+    let profileData = {};
+    
+    // Get profile data based on role
+    if (user.role === 'student') {
+      const student = await Student.findOne({ user: userId })
+        .populate('department', 'name code');
+      if (student) {
+        profileData = student.toObject();
+      }
+    } else if (user.role === 'lecturer') {
+      const lecturer = await Lecturer.findOne({ user: userId })
+        .populate('department', 'name code');
+      if (lecturer) {
+        profileData = lecturer.toObject();
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'User profile fetched',
+      data: {
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          profileImage: user.profileImage,
+          isEmailVerified: user.isEmailVerified,
+          lastLogin: user.lastLogin,
+        },
+        profile: profileData
+      }
+    });
+  } catch (error) {
+    console.error('Get me error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching profile'
+    });
+  }
+};
 
 // ── PUBLIC: SEARCH SCHOOLS (used during registration, no auth) ───────────────
 export const searchSchoolsPublic = async (req: Request, res: Response): Promise<void> => {

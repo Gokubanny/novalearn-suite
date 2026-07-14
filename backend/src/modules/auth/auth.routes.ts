@@ -1,11 +1,34 @@
 import { Router } from 'express';
 import {
-  getSchoolStats, getSchoolProfile, updateSchoolProfile, uploadSchoolLogo,
-  createDepartment, getDepartments, updateDepartment, deleteDepartment,
-  getPendingStudents, getAllStudents, approveStudent, rejectStudent, suspendStudent,
-  getPendingLecturers, getAllLecturers, approveLecturer, rejectLecturer,
-  getStudentProfile, getLecturerProfile,
-  searchSchoolsPublic, getPublicDepartments,
+  login,
+  registerStudent,
+  registerLecturer,
+  forgotPassword,
+  resetPassword,
+  changePassword,
+  updateProfile,
+  getMe,
+  getSchoolStats,
+  getSchoolProfile,
+  updateSchoolProfile,
+  uploadSchoolLogo,
+  createDepartment,
+  getDepartments,
+  updateDepartment,
+  deleteDepartment,
+  getPendingStudents,
+  getAllStudents,
+  approveStudent,
+  rejectStudent,
+  suspendStudent,
+  getPendingLecturers,
+  getAllLecturers,
+  approveLecturer,
+  rejectLecturer,
+  getStudentProfile,
+  getLecturerProfile,
+  searchSchoolsPublic,
+  getPublicDepartments,
 } from './auth.controller';
 import { protect, authorize } from '../../middleware/auth.middleware';
 import { uploadImage } from '../../middleware/upload.middleware';
@@ -13,12 +36,23 @@ import { UserRole } from '../../types';
 
 const router = Router();
 
-// ── FULLY PUBLIC — used during registration, before the user has an account ──
-// Must come before any protect/authorize middleware below.
+// ── PUBLIC AUTH ROUTES (No authentication required) ────────────────────────
+router.post('/login', login);
+router.post('/register/student', registerStudent);
+router.post('/register/lecturer', registerLecturer);
+router.post('/forgot-password', forgotPassword);
+router.patch('/reset-password/:token', resetPassword);
+
+// ── PUBLIC SEARCH ROUTES (used during registration) ────────────────────────
 router.get('/public/search', searchSchoolsPublic);
 router.get('/public/:schoolId/departments', getPublicDepartments);
 
-// ── PUBLIC TO ALL AUTHENTICATED USERS ────────────────────────────────────────
+// ── PROTECTED ROUTES (Authentication required) ─────────────────────────────
+router.get('/me', protect, getMe);
+router.patch('/change-password', protect, changePassword);
+router.patch('/update-profile', protect, updateProfile);
+
+// ── DEPARTMENT ROUTES (Accessible by all authenticated users) ─────────────
 router.get(
   '/departments',
   protect,
@@ -26,7 +60,7 @@ router.get(
   getDepartments
 );
 
-// ── SCHOOL ADMIN ONLY — applied to all routes below ──────────────────────────
+// ── SCHOOL ADMIN ONLY ROUTES ────────────────────────────────────────────────
 router.use(protect, authorize(UserRole.SCHOOL_ADMIN));
 
 // Dashboard
@@ -37,7 +71,7 @@ router.get('/profile', getSchoolProfile);
 router.patch('/profile', updateSchoolProfile);
 router.post('/logo', uploadImage.single('logo'), uploadSchoolLogo);
 
-// Departments (write operations — admin only)
+// Departments (write operations)
 router.post('/departments', createDepartment);
 router.patch('/departments/:id', updateDepartment);
 router.delete('/departments/:id', deleteDepartment);
