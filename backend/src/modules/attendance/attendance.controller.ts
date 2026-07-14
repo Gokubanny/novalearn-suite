@@ -73,6 +73,10 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
 
   if (!req.file) throw new AppError('No image uploaded for facial recognition.', 400);
 
+  // Store file buffer for use in getFormData function
+  const fileBuffer = req.file.buffer;
+  const schoolId = req.user?.school as string;
+
   // Verify lecturer owns this course
   const lecturer = await Lecturer.findOne({ user: req.user?.id, school: req.user?.school });
   if (!lecturer) throw new AppError('Lecturer profile not found.', 404);
@@ -95,11 +99,11 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
     // Function to create fresh FormData for each attempt
     const getFormData = () => {
       const formData = new FormData();
-      formData.append('image', req.file.buffer, {
+      formData.append('image', fileBuffer, {
         filename: 'attendance.jpg',
         contentType: 'image/jpeg',
       });
-      formData.append('school_id', req.user?.school as string);
+      formData.append('school_id', schoolId);
       return formData;
     };
 
@@ -302,6 +306,11 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
 
   if (!req.file) throw new AppError('No image uploaded.', 400);
 
+  // Store file buffer and IDs for use in getFormData function
+  const fileBuffer = req.file.buffer;
+  const studentId = student._id.toString();
+  const schoolId = req.user?.school as string;
+
   // Send face to Python service for encoding with retry logic
   try {
     const faceServiceUrl = process.env.FACE_RECOGNITION_SERVICE_URL;
@@ -311,17 +320,17 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
     }
 
     console.log(`Calling face service at: ${faceServiceUrl}/register`);
-    console.log(`Student ID: ${student._id}, School ID: ${req.user?.school}`);
+    console.log(`Student ID: ${studentId}, School ID: ${schoolId}`);
 
     // Function to create fresh FormData for each attempt
     const getFormData = () => {
       const formData = new FormData();
-      formData.append('image', req.file.buffer, {
+      formData.append('image', fileBuffer, {
         filename: 'face.jpg',
         contentType: 'image/jpeg',
       });
-      formData.append('student_id', student._id.toString());
-      formData.append('school_id', req.user?.school as string);
+      formData.append('student_id', studentId);
+      formData.append('school_id', schoolId);
       return formData;
     };
 
