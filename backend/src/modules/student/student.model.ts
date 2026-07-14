@@ -31,6 +31,5 @@ const StudentSchema = new Schema<IStudent>(
 
 StudentSchema.index({ school: 1 });
 StudentSchema.index({ matricNumber: 1, school: 1 }, { unique: true });
-StudentSchema.index({ user: 1 });
 
 export default mongoose.model<IStudent>('Student', StudentSchema);

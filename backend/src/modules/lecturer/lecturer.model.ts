@@ -21,7 +21,6 @@ const LecturerSchema = new Schema<ILecturer>(
 );
 
 LecturerSchema.index({ school: 1 });
-LecturerSchema.index({ user: 1 });
 LecturerSchema.index({ staffId: 1, school: 1 }, { unique: true });
 
 export default mongoose.model<ILecturer>('Lecturer', LecturerSchema);

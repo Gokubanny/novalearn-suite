@@ -37,7 +37,6 @@ const SchoolSchema = new Schema<ISchool>(
   { timestamps: true }
 );
 
-SchoolSchema.index({ code: 1 });
 SchoolSchema.index({ admin: 1 });
 
 export default mongoose.model<ISchool>('School', SchoolSchema);

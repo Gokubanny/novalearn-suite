@@ -42,7 +42,6 @@ UserSchema.methods.getFullName = function (): string {
 };
 
 // Index for faster queries
-UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 
 export default mongoose.model<IUser>('User', UserSchema);
