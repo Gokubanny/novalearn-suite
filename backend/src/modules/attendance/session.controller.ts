@@ -179,7 +179,7 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
           ...formData.getHeaders(),
           'x-api-key': INTERNAL_API_KEY,
         },
-        timeout: 30000,
+        timeout: 120000,
       }
     );
 

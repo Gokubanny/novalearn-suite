@@ -114,7 +114,7 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
         'x-api-key': process.env.INTERNAL_API_KEY || ''
       },
       2, // max retries (reduced to 2 for faster failure)
-      2000 // initial delay in ms
+      120000 // initial delay in ms
     );
 
     recognizedStudentIds = faceResponse.data.recognized_students || [];
@@ -342,7 +342,7 @@ export const registerStudentFace = async (req: AuthRequest, res: Response): Prom
         'x-api-key': process.env.INTERNAL_API_KEY || ''
       },
       2, // max retries
-      2000 // initial delay in ms
+      120000 // initial delay in ms
     );
 
     console.log('Face service response:', response.data);
