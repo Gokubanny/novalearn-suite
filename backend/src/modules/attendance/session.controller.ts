@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import axios from 'axios';
 import FormData from 'form-data';
 import AttendanceSession from './attendance-session.model';
 import Attendance from './attendance.model';
@@ -10,6 +9,7 @@ import Notification from '../notification/notification.model';
 import { AuthRequest, AttendanceStatus, NotificationType } from '../../types';
 import { AppError } from '../../middleware/error.middleware';
 import { getCurrentSession } from '../../utils/helpers';
+import { callFaceServiceWithRetry } from '../../utils/faceServiceClient';
 
 const FACE_SERVICE_URL = process.env.FACE_RECOGNITION_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
@@ -32,7 +32,6 @@ export const startSession = async (req: AuthRequest, res: Response): Promise<voi
   });
   if (!course) throw new AppError('Course not found or unauthorized.', 404);
 
-  // Check no session already open for this course
   const existingSession = await AttendanceSession.findOne({
     course: courseId, status: 'open',
     expiresAt: { $gt: new Date() },
@@ -57,7 +56,6 @@ export const startSession = async (req: AuthRequest, res: Response): Promise<voi
     status: 'open',
   });
 
-  // Notify all enrolled students
   const enrolledStudents = await Student.find({
     _id: { $in: course.enrolledStudents },
   }).populate<{ user: any }>('user', '_id');
@@ -102,7 +100,6 @@ export const endSession = async (req: AuthRequest, res: Response): Promise<void>
   session.status = 'closed';
   await session.save();
 
-  // Finalize attendance — build full attendance record
   await finalizeAttendance(session);
 
   res.status(200).json({
@@ -138,8 +135,8 @@ export const getActiveSession = async (req: AuthRequest, res: Response): Promise
     success: true,
     message: 'Active session found.',
     data: {
-      _id: session._id,           // ← ADDED for frontend compatibility
-      id: session._id,            // ← ADDED for frontend compatibility
+      _id: session._id,
+      id: session._id,
       sessionId: session._id,
       expiresAt: session.expiresAt,
       durationMinutes: session.durationMinutes,
@@ -159,40 +156,38 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
   const student = await Student.findOne({ user: req.user?.id, school: req.user?.school });
   if (!student) throw new AppError('Student profile not found.', 404);
 
-  // Call Python face service
-  try {
-    const formData = new FormData();
-    formData.append('student_id', student._id.toString());
-    formData.append('session_id', sessionId);
-    formData.append('student_latitude', String(latitude));
-    formData.append('student_longitude', String(longitude));
-    formData.append('image', req.file.buffer, {
-      filename: 'selfie.jpg',
-      contentType: 'image/jpeg',
-    });
+  const fileBuffer = req.file.buffer;
+  const studentIdStr = student._id.toString();
 
-    const faceResponse = await axios.post(
+  try {
+    const getFormData = () => {
+      const formData = new FormData();
+      formData.append('student_id', studentIdStr);
+      formData.append('session_id', sessionId);
+      formData.append('student_latitude', String(latitude));
+      formData.append('student_longitude', String(longitude));
+      formData.append('image', fileBuffer, {
+        filename: 'selfie.jpg',
+        contentType: 'image/jpeg',
+      });
+      return formData;
+    };
+
+    const faceResponse = await callFaceServiceWithRetry(
       `${FACE_SERVICE_URL}/recognize/selfie`,
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          'x-api-key': INTERNAL_API_KEY,
-        },
-        timeout: 120000,
-      }
+      getFormData,
+      { 'x-api-key': INTERNAL_API_KEY },
+      2,
+      120000
     );
 
     const result = faceResponse.data;
 
     if (result.marked_present) {
-      // Add to session's present students list
       await AttendanceSession.findByIdAndUpdate(sessionId, {
-        // ✅ CORRECT - single $addToSet object with multiple properties
         $addToSet: { presentStudents: student._id, submittedStudents: student._id }
       });
     } else {
-      // Still add to submitted students even if not present (for tracking)
       await AttendanceSession.findByIdAndUpdate(sessionId, {
         $addToSet: { submittedStudents: student._id },
       });
@@ -210,9 +205,31 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
       },
     });
   } catch (error: any) {
+    console.error('Selfie verification error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      code: error.code,
+    });
+
+    if (error.response?.status === 429) {
+      throw new AppError(
+        'Face recognition service is busy. Please wait a moment and try again.',
+        429
+      );
+    }
+
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      throw new AppError(
+        'Face recognition service is taking too long to respond. Please try again in a minute.',
+        504
+      );
+    }
+
     if (error.response?.data?.detail) {
       throw new AppError(error.response.data.detail, error.response.status || 400);
     }
+
     throw new AppError('Attendance submission failed. Please try again.', 503);
   }
 };
@@ -223,10 +240,8 @@ export const finalizeAttendance = async (session: any): Promise<void> => {
     const course = await Course.findById(session.course);
     if (!course) return;
 
-    // Get all enrolled students
     const enrolledStudents = course.enrolledStudents;
 
-    // Build attendance records
     const records = enrolledStudents.map((studentId: any) => {
       const isPresent = session.presentStudents.some(
         (p: any) => p.toString() === studentId.toString()

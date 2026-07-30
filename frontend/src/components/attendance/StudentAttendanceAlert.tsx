@@ -15,6 +15,8 @@ interface ActiveSession {
   expiresAt: number;
 }
 
+const RETRY_COOLDOWN_MS = 20_000;
+
 function formatTimeLeft(ms: number) {
   if (ms <= 0) return '00:00';
   const total = Math.floor(ms / 1000);
@@ -31,6 +33,8 @@ export function StudentAttendanceAlert() {
   const [submitting, setSubmitting] = useState(false);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  // sessionId -> timestamp (ms) when that session's retry becomes available again
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +78,18 @@ export function StudentAttendanceAlert() {
   const live = active.filter((s) => s.expiresAt - now > 0);
   if (live.length === 0) return null;
 
+  const startCooldown = (sessionId: string) => {
+    setCooldowns((prev) => ({ ...prev, [sessionId]: Date.now() + RETRY_COOLDOWN_MS }));
+  };
+
+  const cooldownRemaining = (sessionId: string) => {
+    const until = cooldowns[sessionId];
+    if (!until) return 0;
+    return Math.max(0, until - now);
+  };
+
   const beginSubmit = async (session: ActiveSession) => {
+    if (cooldownRemaining(session.sessionId) > 0) return;
     setTarget(session);
     setCoords(null);
     setSubmitting(true);
@@ -96,10 +111,11 @@ export function StudentAttendanceAlert() {
 
   const handleCapture = async (file: File) => {
     if (!target || !coords) return;
+    const activeTarget = target; // snapshot — state may change before finally runs
     setSubmitting(true);
     try {
       const r = await attendanceService.submitSelfie(
-        target.sessionId,
+        activeTarget.sessionId,
         file,
         coords.latitude,
         coords.longitude
@@ -120,7 +136,7 @@ export function StudentAttendanceAlert() {
           title: 'Attendance marked',
           description: 'You have been marked present.',
         });
-        setActive((prev) => prev.filter((s) => s.sessionId !== target.sessionId));
+        setActive((prev) => prev.filter((s) => s.sessionId !== activeTarget.sessionId));
       } else if (locValid === false) {
         toast({
           title: 'Out of range',
@@ -140,16 +156,22 @@ export function StudentAttendanceAlert() {
           description: data.message || 'Submission received.',
         });
       }
-      setCameraOpen(false);
-      setTarget(null);
     } catch (err: any) {
       toast({
         title: 'Submission failed',
-        description: err?.message || 'Could not submit attendance.',
+        description: err?.message || 'Could not submit attendance. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      // Whatever happened — success, a business-rule failure, or a hard
+      // error/timeout — the attempt is over. Always close the modal, clear
+      // the target, and start the cooldown so the student gets a clear
+      // "try again in Ns" instead of an instant, possibly-hammering retry.
+      setSubmitting(false);
+      setCameraOpen(false);
+      setTarget(null);
+      startCooldown(activeTarget.sessionId);
     }
-    setSubmitting(false);
   };
 
   return (
@@ -157,6 +179,9 @@ export function StudentAttendanceAlert() {
       <div className="space-y-3">
         {live.map((s) => {
           const left = s.expiresAt - now;
+          const remaining = cooldownRemaining(s.sessionId);
+          const inCooldown = remaining > 0;
+          const isCurrentTarget = target?.sessionId === s.sessionId;
           return (
             <Card
               key={s.sessionId}
@@ -181,13 +206,17 @@ export function StudentAttendanceAlert() {
                   <MapPin className="h-3.5 w-3.5" />
                   We'll use your location and camera to verify your attendance.
                 </p>
-                <Button onClick={() => beginSubmit(s)} disabled={submitting} className="gap-2">
-                  {submitting && target?.sessionId === s.sessionId ? (
+                <Button
+                  onClick={() => beginSubmit(s)}
+                  disabled={(submitting && isCurrentTarget) || inCooldown}
+                  className="gap-2"
+                >
+                  {submitting && isCurrentTarget ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
-                  Submit Attendance
+                  {inCooldown ? `Retry in ${Math.ceil(remaining / 1000)}s` : 'Submit Attendance'}
                 </Button>
               </CardContent>
             </Card>
@@ -198,6 +227,7 @@ export function StudentAttendanceAlert() {
       <CameraCaptureModal
         open={cameraOpen}
         onClose={() => {
+          // Plain cancel (student backed out without submitting) — no penalty.
           setCameraOpen(false);
           setTarget(null);
         }}

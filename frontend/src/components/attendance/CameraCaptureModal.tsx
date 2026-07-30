@@ -26,15 +26,14 @@ export function CameraCaptureModal({
 
   const [cameraLoading, setCameraLoading] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);       // data URL shown after snap
+  const [preview, setPreview] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitElapsedMs, setSubmitElapsedMs] = useState(0);
 
-  // ── Start camera when modal opens ────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
 
-    // Reset every time modal opens
     setPreview(null);
     setCapturedFile(null);
     setCameraError(null);
@@ -74,12 +73,24 @@ export function CameraCaptureModal({
     };
   }, [open]);
 
+  // Tracks how long the current verify attempt has been running, so the
+  // overlay can reassure the student during a legitimate cold-start wait
+  // instead of just spinning silently.
+  useEffect(() => {
+    if (!submitting) {
+      setSubmitElapsedMs(0);
+      return;
+    }
+    const start = Date.now();
+    const id = window.setInterval(() => setSubmitElapsedMs(Date.now() - start), 1000);
+    return () => window.clearInterval(id);
+  }, [submitting]);
+
   const stopStream = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
   };
 
-  // ── Snap the photo ────────────────────────────────────────────────────────
   const snap = async () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
@@ -90,14 +101,12 @@ export function CameraCaptureModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Mirror the image (front camera is mirrored in preview but we want natural)
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
 
-    // Show the preview immediately and stop the camera stream
     setPreview(canvas.toDataURL('image/jpeg', 0.92));
-    stopStream(); // ← Camera stops here. Student no longer needs to stay still.
+    stopStream();
 
     const blob: Blob | null = await new Promise(resolve =>
       canvas.toBlob(b => resolve(b), 'image/jpeg', 0.92)
@@ -107,7 +116,6 @@ export function CameraCaptureModal({
     }
   };
 
-  // ── Retake: restart camera ─────────────────────────────────────────────────
   const retake = async () => {
     setPreview(null);
     setCapturedFile(null);
@@ -130,7 +138,6 @@ export function CameraCaptureModal({
     }
   };
 
-  // ── Submit the captured photo ─────────────────────────────────────────────
   const submit = async () => {
     if (!capturedFile || submitting) return;
     setSubmitting(true);
@@ -142,7 +149,7 @@ export function CameraCaptureModal({
   };
 
   const handleClose = () => {
-    if (submitting) return; // don't allow close while submitting
+    if (submitting) return;
     stopStream();
     onClose();
   };
@@ -155,10 +162,8 @@ export function CameraCaptureModal({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        {/* ── Camera / Preview area ── */}
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black">
 
-          {/* Loading spinner */}
           {cameraLoading && !preview && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -166,7 +171,6 @@ export function CameraCaptureModal({
             </div>
           )}
 
-          {/* Error */}
           {cameraError && !preview && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
               <X className="h-8 w-8 text-destructive" />
@@ -174,7 +178,6 @@ export function CameraCaptureModal({
             </div>
           )}
 
-          {/* Live video — mirrored so it feels natural */}
           <video
             ref={videoRef}
             playsInline
@@ -182,7 +185,6 @@ export function CameraCaptureModal({
             className={`h-full w-full object-cover [transform:scaleX(-1)] ${preview ? 'hidden' : ''}`}
           />
 
-          {/* Preview photo */}
           {preview && (
             <img
               src={preview}
@@ -191,28 +193,28 @@ export function CameraCaptureModal({
             />
           )}
 
-          {/* Face guide ring — visible only on live camera */}
           {!preview && !cameraLoading && !cameraError && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="h-52 w-52 rounded-full border-2 border-white/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
             </div>
           )}
 
-          {/* Submitting overlay — shown on preview while backend processes */}
           {submitting && preview && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60">
               <Loader2 className="h-10 w-10 animate-spin text-white" />
-              <div className="text-center text-white">
+              <div className="text-center text-white px-6">
                 <p className="text-sm font-semibold">Verifying your face…</p>
-                <p className="text-xs text-white/70 mt-1">Checking GPS and face match</p>
+                <p className="text-xs text-white/70 mt-1">
+                  {submitElapsedMs > 15000
+                    ? 'Still working — this can take a little longer if the service is waking up.'
+                    : 'Checking GPS and face match'}
+                </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Action buttons ── */}
         {!preview ? (
-          /* Camera mode */
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleClose} className="flex-none">
               Cancel
@@ -227,7 +229,6 @@ export function CameraCaptureModal({
             </Button>
           </div>
         ) : (
-          /* Preview mode */
           <div className="flex gap-2">
             <Button
               variant="outline"

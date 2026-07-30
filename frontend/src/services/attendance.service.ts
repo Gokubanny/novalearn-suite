@@ -27,6 +27,9 @@ export const attendanceService = {
     formData.append('longitude', String(longitude));
     return api.post(`/api/attendance/sessions/${sessionId}/selfie`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      // Backend retries the face service up to ~180s worst-case (cold start).
+      // This gives it room to finish rather than timing out first.
+      timeout: 200000,
     });
   },
 
