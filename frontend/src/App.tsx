@@ -144,7 +144,7 @@ const App = () => (
               
               {/* Auth Pages - Unified with cinematic transitions */}
               <Route path="/login" element={<AuthPage />} />
-              <Route path="/register" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/pending-approval" element={<PendingApprovalPage />} />
               
