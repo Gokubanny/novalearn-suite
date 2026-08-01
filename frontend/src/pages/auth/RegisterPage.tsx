@@ -147,10 +147,13 @@ export default function RegisterPage() {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [loadingDepartments, setLoadingDepartments]    = useState(false);
 
+  const schema = useMemo(() => makeRegisterSchema(role as 'student' | 'lecturer'), [role]);
+
   const {
     register, handleSubmit, watch, setValue,
     formState: { errors },
-  } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterFormData>({ resolver: zodResolver(schema), mode: 'onBlur' });
+
 
   // ── Debounced school search ──────────────────────────────────────────────
   useEffect(() => {
