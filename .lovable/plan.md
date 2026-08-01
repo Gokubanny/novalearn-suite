@@ -25,3 +25,4 @@ The router points both `/login` and `/register` at `AuthPage`, so the wrong form
 - Files edited: `frontend/src/App.tsx`, `frontend/src/pages/auth/AuthPage.tsx`.
 - `AuthPage`'s legacy register form becomes unused for routing; the Admin option is removed from it regardless so it can never be reached.
 - No backend or business-logic changes.
+- Preview is currently down for an unrelated reason: `frontend/node_modules` is empty, so `vite` isn't found. First step on build will be reinstalling frontend dependencies.
