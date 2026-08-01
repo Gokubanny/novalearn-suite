@@ -190,20 +190,15 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     if (!selectedSchool) {
       toast({ title: 'Select your school', description: 'Please go back and choose your school.', variant: 'destructive' });
+      setStep(2);
       return;
     }
     if (!selectedDepartmentId) {
       toast({ title: 'Select your department', description: 'Please go back and choose your department.', variant: 'destructive' });
+      setStep(3);
       return;
     }
-    if (role === 'student' && !data.level) {
-      toast({ title: 'Level required', description: 'Please select your level.', variant: 'destructive' });
-      return;
-    }
-    if (role === 'lecturer' && (!data.title || !data.qualification)) {
-      toast({ title: 'Missing fields', description: 'Please select a title and enter your qualification.', variant: 'destructive' });
-      return;
-    }
+
 
     const result = await registerUser({
       role,
