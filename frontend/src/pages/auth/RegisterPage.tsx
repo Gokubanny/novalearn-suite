@@ -533,8 +533,13 @@ export default function RegisterPage() {
                           {errors.qualification && <p className="text-xs text-destructive">{errors.qualification.message}</p>}
                         </div>
                       </div>
-
+                      <div className="space-y-2">
+                        <Label htmlFor="specialisation">Specialisation (Optional)</Label>
+                        <Input id="specialisation" placeholder="e.g. Machine Learning" {...register('specialisation')} />
+                      </div>
+                    </>
                   )}
+
 
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
