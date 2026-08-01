@@ -1,85 +1,28 @@
-## Goal
+# Fix registration fields and remove public Admin sign-up
 
-Two independent cleanups/upgrades now that the frontend runs entirely on the Render API:
+## What's happening now
 
-1. Delete the dead Supabase scaffolding from the repo.
-2. Replace the 15-second notification polling with a true WebSocket realtime channel, keeping polling only as a fallback.
+There are two sign-up screens in the project:
 
----
+- `RegisterPage.tsx` — a 4-step flow (Role → School → Department → Details) that already collects exactly what the backend expects: `firstName, lastName, email, password, phone, schoolCode, departmentId` plus `level` + `matricNumber` for students, and `title` + `qualification` + `specialisation` for lecturers. It only offers Student and Lecturer.
+- `AuthPage.tsx` — an older single-form sign-up that sends `department` and `institution` as free text (fields the backend does not accept), is missing `schoolCode`, `departmentId`, `level`, `matricNumber`, `title` and `qualification`, and shows an **Admin** role tile.
 
-## Part 1 — Remove legacy Supabase files
+The router points both `/login` and `/register` at `AuthPage`, so the wrong form is the one users actually see. That's the cause of the mismatch.
 
-### What gets deleted
+## Changes
 
-Frontend (no longer imported anywhere):
-- `frontend/src/integrations/supabase/client.ts`
-- `frontend/src/integrations/supabase/types.ts`
-- `frontend/supabase/` (entire folder: `config.toml`, `functions/ai-tutor`, `functions/create-checkout-session`, `functions/create-portal-session`, `functions/seed-demo-data`, `functions/stripe-webhook`, all `migrations/*.sql`)
+1. **Route `/register` to the correct form** (`src/App.tsx`)
+   - Lazy-import `RegisterPage` and use it for `/register`. `/login` keeps using `AuthPage`.
 
-Repo root duplicates created by the Lovable Cloud auto-scaffold:
-- `src/integrations/supabase/client.ts`
-- `src/integrations/supabase/types.ts`
-- `supabase/config.toml`
-- `.env` at repo root (only if it just holds the Supabase keys — will verify before deleting)
+2. **Remove public Admin sign-up** (`src/pages/auth/AuthPage.tsx`)
+   - Drop the Admin tile from the role options so no path offers an admin account. Admins are created by the Super Admin only.
 
-### Safety checks before deletion
-
-- `rg "@/integrations/supabase"` across `frontend/src` to confirm zero imports remain.
-- `rg "supabase\\.from\\(|supabase\\.auth|supabase\\.storage|supabase\\.channel"` to confirm no runtime calls.
-- If any stray reference is found, fix that file first (replace with the matching Render service) before deleting.
-
-### Memory + config follow-ups
-
-- Update `mem://tech/backend-infrastructure` and `mem://tech/file-access` to describe the Render + MongoDB + Cloudinary stack instead of Supabase/RLS/signed URLs.
-- Update the Core line in `mem://index.md` that still says "Supabase + RLS backend".
-- Leave Lovable Cloud "enabled" status alone — we only remove the project files; the integration toggle is managed in the UI.
-
----
-
-## Part 2 — WebSocket realtime notifications
-
-### Backend (`backend/`)
-
-- Add `socket.io` dependency.
-- In `backend/src/index.ts`, wrap the existing Express server with an `http.Server` and attach a Socket.IO server on the same port, sharing CORS config with Express.
-- Create `backend/src/realtime/socket.ts`:
-  - JWT auth middleware on the socket handshake (`auth.token`), reusing the same secret as the REST middleware.
-  - On connect, join a per-user room: `user:{userId}` and, if present, `school:{schoolId}`.
-  - Export `emitToUser(userId, event, payload)` and `emitToSchool(schoolId, event, payload)` helpers.
-- In `backend/src/modules/notification/notification.controller.ts` (and wherever notifications are created elsewhere — attendance, assignments, results, discussions), call `emitToUser` with event `notification:new` right after persisting.
-- Emit `notification:read` and `notification:read-all` on the corresponding PATCH endpoints so multiple tabs stay in sync.
-
-### Frontend (`frontend/`)
-
-- Add `socket.io-client`.
-- Create `frontend/src/lib/socket.ts`: a singleton that lazily connects using the JWT from `authStore`, exposes `getSocket()`, `disconnect()`, and reconnects on token change.
-- Rewrite `frontend/src/hooks/useNotifications.ts`:
-  - Initial fetch via `notificationService.getNotifications()` (unchanged).
-  - Subscribe to `notification:new` → prepend to list + bump unread count + fire toast.
-  - Subscribe to `notification:read` / `notification:read-all` → update local state.
-  - Keep a slow polling fallback (`60s`, not 15s) that only runs while the socket is disconnected; clear it as soon as `connect` fires.
-  - Expose connection status (`isRealtime: boolean`) for the UI.
-- `NotificationCentrePage.tsx`: show a small "Live" indicator when `isRealtime` is true, "Polling" when it falls back. No layout/redesign changes.
-- Tear down the socket on logout (hook into `authStore` sign-out).
-
-### Env / config
-
-- Backend already uses one port for HTTP — Socket.IO attaches to the same server, so no new Render service or port is needed.
-- Frontend reads the WebSocket URL from the existing `VITE_API_URL` (strip `/api` suffix if present) — no new env var required.
-
----
+3. **Registration payloads** — no change needed
+   - `AuthContext.register` and `auth.service` already post to `/api/auth/register/student` and `/api/auth/register/lecturer` with the exact field names the backend expects.
 
 ## Technical notes
 
-- Socket.IO is chosen over raw `ws` because it handles reconnect, heartbeat, and the polling-transport fallback automatically, which matches the existing graceful-degradation behavior.
-- Auth: JWT is passed in `io(url, { auth: { token } })`; the server verifies in `io.use(...)` middleware and attaches `socket.data.user`.
-- No DB schema changes. No changes to any dashboard page layouts.
-- Backend changes require a Render redeploy before the frontend realtime indicator will flip to "Live"; until then the fallback polling keeps everything working.
-
----
-
-## Out of scope
-
-- Realtime for chat, discussions, attendance sessions, or grades (can be added later using the same `emitToUser` helper).
-- Removing the Lovable Cloud integration itself (just the local files).
-- Any visual redesign.
+- Files edited: `frontend/src/App.tsx`, `frontend/src/pages/auth/AuthPage.tsx`.
+- `AuthPage`'s legacy register form becomes unused for routing; the Admin option is removed from it regardless so it can never be reached.
+- No backend or business-logic changes.
+- Preview is currently down for an unrelated reason: `frontend/node_modules` is empty, so `vite` isn't found. First step on build will be reinstalling frontend dependencies.
