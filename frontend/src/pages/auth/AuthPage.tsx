@@ -165,6 +165,7 @@ export default function AuthPage() {
             >
               <LoginForm onSwitch={() => handleSwitch('register')} />
             </motion.div>
+          </AnimatePresence>
         </div>
       </div>
     </div>
