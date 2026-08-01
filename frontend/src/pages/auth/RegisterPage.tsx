@@ -491,8 +491,9 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number (Optional)</Label>
-                    <Input id="phone" placeholder="+234..." {...register('phone')} />
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input id="phone" type="tel" placeholder="+2348012345678" {...register('phone')} className={errors.phone ? 'border-destructive' : ''} />
+                    {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
                   </div>
 
                   {role === 'student' ? (
@@ -500,15 +501,17 @@ export default function RegisterPage() {
                       <div className="space-y-2">
                         <Label>Level</Label>
                         <Select value={watch('level')} onValueChange={v => setValue('level', v, { shouldValidate: true })}>
-                          <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                          <SelectTrigger className={errors.level ? 'border-destructive' : ''}><SelectValue placeholder="Select level" /></SelectTrigger>
                           <SelectContent>
                             {LEVELS.map(l => <SelectItem key={l} value={String(l)}>{l} Level</SelectItem>)}
                           </SelectContent>
                         </Select>
+                        {errors.level && <p className="text-xs text-destructive">{errors.level.message}</p>}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="matricNumber">Matric Number (Optional)</Label>
-                        <Input id="matricNumber" placeholder="Auto-generated if blank" {...register('matricNumber')} />
+                        <Input id="matricNumber" placeholder="Auto-generated if blank" {...register('matricNumber')} className={errors.matricNumber ? 'border-destructive' : ''} />
+                        {errors.matricNumber && <p className="text-xs text-destructive">{errors.matricNumber.message}</p>}
                       </div>
                     </div>
                   ) : (
@@ -517,22 +520,20 @@ export default function RegisterPage() {
                         <div className="space-y-2">
                           <Label>Title</Label>
                           <Select value={watch('title')} onValueChange={v => setValue('title', v, { shouldValidate: true })}>
-                            <SelectTrigger><SelectValue placeholder="Select title" /></SelectTrigger>
+                            <SelectTrigger className={errors.title ? 'border-destructive' : ''}><SelectValue placeholder="Select title" /></SelectTrigger>
                             <SelectContent>
                               {TITLES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="qualification">Qualification</Label>
-                          <Input id="qualification" placeholder="e.g. PhD Computer Science" {...register('qualification')} />
+                          <Input id="qualification" placeholder="e.g. PhD Computer Science" {...register('qualification')} className={errors.qualification ? 'border-destructive' : ''} />
+                          {errors.qualification && <p className="text-xs text-destructive">{errors.qualification.message}</p>}
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="specialisation">Specialisation (Optional)</Label>
-                        <Input id="specialisation" placeholder="e.g. Machine Learning" {...register('specialisation')} />
-                      </div>
-                    </>
+
                   )}
 
                   <div className="space-y-2">
