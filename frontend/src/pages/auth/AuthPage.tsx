@@ -56,10 +56,11 @@ function getRoleRedirectPath(role: UserRole): string {
   return paths[role];
 }
 
-const roles: { value: UserRole; label: string; icon: React.ReactNode }[] = [
+// Public sign-up is limited to students and lecturers.
+// Admin accounts are created by the Super Admin.
+const roles: { value: RegisterRole; label: string; icon: React.ReactNode }[] = [
   { value: 'student', label: 'Student', icon: <GraduationCap className="h-5 w-5" /> },
   { value: 'lecturer', label: 'Lecturer', icon: <Users className="h-5 w-5" /> },
-  { value: 'admin', label: 'Admin', icon: <Building2 className="h-5 w-5" /> },
 ];
 
 // ─── Image config ───────────────────────────────────────────
