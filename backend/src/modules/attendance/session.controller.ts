@@ -145,6 +145,37 @@ export const getActiveSession = async (req: AuthRequest, res: Response): Promise
   });
 };
 
+// ── HELPER: RECORD AN ATTEMPT (increment if exists, else push) ───────────────
+// Mongo has no single native "upsert into array + increment" operator, so
+// this is the standard two-step idiom: try to bump an existing entry via the
+// positional $ operator, and only push a brand-new entry if nothing matched.
+const recordAttempt = async (
+  sessionId: string,
+  studentId: any,
+  status: 'present' | 'face_mismatch' | 'location_invalid'
+): Promise<void> => {
+  const now = new Date();
+
+  const incremented = await AttendanceSession.updateOne(
+    { _id: sessionId, 'attemptCounts.student': studentId },
+    {
+      $inc: { 'attemptCounts.$.count': 1 },
+      $set: { 'attemptCounts.$.lastStatus': status, 'attemptCounts.$.lastAttemptAt': now },
+    }
+  );
+
+  if (incremented.matchedCount === 0) {
+    await AttendanceSession.updateOne(
+      { _id: sessionId },
+      {
+        $push: {
+          attemptCounts: { student: studentId, count: 1, lastStatus: status, lastAttemptAt: now },
+        },
+      }
+    );
+  }
+};
+
 // ── STUDENT SELFIE SUBMISSION ──────────────────────────────────────────────────
 export const submitSelfie = async (req: AuthRequest, res: Response): Promise<void> => {
   const { sessionId } = req.params;
@@ -183,13 +214,23 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
 
     const result = faceResponse.data;
 
+    // Classify this attempt for the lecturer's attempt log. Only fires on a
+    // completed verification (not on network/infra errors, which are caught
+    // below and don't represent a real face/location outcome).
+    const attemptStatus: 'present' | 'face_mismatch' | 'location_invalid' = result.marked_present
+      ? 'present'
+      : result.location_valid === false
+        ? 'location_invalid'
+        : 'face_mismatch';
+    await recordAttempt(sessionId, student._id, attemptStatus);
+
+    // Only bookkeep submittedStudents/presentStudents on genuine success —
+    // Python's own has_student_submitted() check reads submittedStudents to
+    // decide whether to 409 a retry, so writing here on failure would
+    // permanently lock a student out after one bad attempt.
     if (result.marked_present) {
       await AttendanceSession.findByIdAndUpdate(sessionId, {
         $addToSet: { presentStudents: student._id, submittedStudents: student._id }
-      });
-    } else {
-      await AttendanceSession.findByIdAndUpdate(sessionId, {
-        $addToSet: { submittedStudents: student._id },
       });
     }
 
@@ -277,12 +318,46 @@ export const getSessionResults = async (req: AuthRequest, res: Response): Promis
     lecturer: req.user?.id,
   })
     .populate({ path: 'presentStudents', populate: { path: 'user', select: 'firstName lastName' }, select: 'matricNumber user' })
+    .populate({ path: 'attemptCounts.student', populate: { path: 'user', select: 'firstName lastName' }, select: 'matricNumber user' })
     .populate('course', 'title code');
 
   if (!session) throw new AppError('Session not found.', 404);
 
   const course = await Course.findById(session.course);
   const totalEnrolled = course?.enrolledStudents.length || 0;
+
+  const presentIds = new Set(
+    session.presentStudents.map((s: any) => s._id.toString())
+  );
+
+  const attemptByStudent = new Map<string, any>();
+  (session.attemptCounts || []).forEach((a: any) => {
+    if (a.student) attemptByStudent.set(a.student._id.toString(), a);
+  });
+
+  // Present students, now with their attempt count attached (useful to see
+  // e.g. "took 3 tries" even for a successful student).
+  const presentStudents = session.presentStudents.map((s: any) => {
+    const a = attemptByStudent.get(s._id.toString());
+    return {
+      _id: s._id,
+      matricNumber: s.matricNumber,
+      user: s.user,
+      attempts: a?.count ?? 1,
+    };
+  });
+
+  // Enrolled students who tried at least once but never succeeded.
+  const attemptedNotPresent = (session.attemptCounts || [])
+    .filter((a: any) => a.student && !presentIds.has(a.student._id.toString()))
+    .map((a: any) => ({
+      _id: a.student._id,
+      matricNumber: a.student.matricNumber,
+      user: a.student.user,
+      attempts: a.count,
+      lastStatus: a.lastStatus,
+      lastAttemptAt: a.lastAttemptAt,
+    }));
 
   res.status(200).json({
     success: true,
@@ -293,7 +368,9 @@ export const getSessionResults = async (req: AuthRequest, res: Response): Promis
       totalEnrolled,
       presentCount: session.presentStudents.length,
       absentCount: totalEnrolled - session.presentStudents.length,
-      presentStudents: session.presentStudents,
+      presentStudents,
+      attemptedNotPresent,
+      attemptedNotPresentCount: attemptedNotPresent.length,
       expiresAt: session.expiresAt,
     },
   });

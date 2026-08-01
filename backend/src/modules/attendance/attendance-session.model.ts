@@ -14,6 +14,12 @@ export interface IAttendanceSession extends Document {
   status: 'open' | 'closed';
   presentStudents: Types.ObjectId[];
   submittedStudents: Types.ObjectId[];
+  attemptCounts: {
+    student: Types.ObjectId;
+    count: number;
+    lastStatus: 'present' | 'face_mismatch' | 'location_invalid';
+    lastAttemptAt: Date;
+  }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +46,18 @@ const AttendanceSessionSchema = new Schema<IAttendanceSession>(
     },
     presentStudents:   [{ type: Schema.Types.ObjectId, ref: 'Student' }],
     submittedStudents: [{ type: Schema.Types.ObjectId, ref: 'Student' }],
+    // One entry per student who has made at least one selfie attempt this
+    // session — tracks how many tries and what the most recent outcome was,
+    // so the lecturer can see "attempted but not yet present" separately
+    // from silence (no attempt at all).
+    attemptCounts: [
+      {
+        student:       { type: Schema.Types.ObjectId, ref: 'Student', required: true },
+        count:         { type: Number, default: 0 },
+        lastStatus:    { type: String, enum: ['present', 'face_mismatch', 'location_invalid'] },
+        lastAttemptAt: { type: Date },
+      },
+    ],
   },
   { timestamps: true }
 );

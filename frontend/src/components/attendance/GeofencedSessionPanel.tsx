@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Clock, Loader2, MapPin, PlayCircle, StopCircle, UserCheck } from 'lucide-react';
+import { Clock, Loader2, MapPin, PlayCircle, StopCircle, UserCheck, XCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,14 +22,31 @@ function formatTimeLeft(ms: number) {
   return `${m}:${s}`;
 }
 
+function formatAttemptStatus(status?: string) {
+  switch (status) {
+    case 'location_invalid': return 'Out of range';
+    case 'face_mismatch': return 'Face not verified';
+    case 'present': return 'Present';
+    default: return 'Attempted';
+  }
+}
+
 // Shape returned by GET /api/attendance/sessions/:sessionId/results
-// data: { sessionId, status, totalEnrolled, presentCount, absentCount, presentStudents, expiresAt }
-// Each item in presentStudents: { _id, matricNumber, user: { firstName, lastName } }
 interface PresentStudent {
   _id?: string;
   id?: string;
   matricNumber?: string;
   user?: { firstName?: string; lastName?: string };
+  attempts?: number;
+}
+
+interface AttemptedStudent {
+  _id?: string;
+  matricNumber?: string;
+  user?: { firstName?: string; lastName?: string };
+  attempts: number;
+  lastStatus?: string;
+  lastAttemptAt?: string;
 }
 
 export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
@@ -39,11 +56,11 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
   const [ending, setEnding] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [presentStudents, setPresentStudents] = useState<PresentStudent[]>([]);
+  const [attemptedNotPresent, setAttemptedNotPresent] = useState<AttemptedStudent[]>([]);
   const [totalEnrolled, setTotalEnrolled] = useState(0);
   const [now, setNow] = useState(Date.now());
   const pollRef = useRef<number | null>(null);
 
-  // Detect existing active session on mount / course change
   useEffect(() => {
     if (!courseId) return;
     let cancelled = false;
@@ -61,7 +78,6 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
     return () => { cancelled = true; };
   }, [courseId]);
 
-  // Tick + poll while session is active
   useEffect(() => {
     if (!session) return;
 
@@ -74,11 +90,13 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
         const r = await attendanceService.getSessionResults(sid);
         const data = r.data?.data ?? {};
 
-        // Backend returns presentStudents array and totalEnrolled
         const list: PresentStudent[] = Array.isArray(data.presentStudents)
           ? data.presentStudents
           : [];
         setPresentStudents(list);
+        setAttemptedNotPresent(
+          Array.isArray(data.attemptedNotPresent) ? data.attemptedNotPresent : []
+        );
         setTotalEnrolled(data.totalEnrolled ?? list.length);
       } catch {
         /* ignore poll failures */
@@ -110,6 +128,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
       const data = r.data?.data ?? r.data;
       setSession(data);
       setPresentStudents([]);
+      setAttemptedNotPresent([]);
       toast({ title: 'Session started', description: `Open for ${duration} minutes.` });
     } catch (err: any) {
       toast({
@@ -129,6 +148,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
       toast({ title: 'Session ended', description: `${presentStudents.length} students marked present.` });
       setSession(null);
       setPresentStudents([]);
+      setAttemptedNotPresent([]);
       setTotalEnrolled(0);
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message, variant: 'destructive' });
@@ -136,7 +156,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
     setEnding(false);
   };
 
-  const getStudentName = (s: PresentStudent) =>
+  const getStudentName = (s: { user?: { firstName?: string; lastName?: string } }) =>
     [s.user?.firstName, s.user?.lastName].filter(Boolean).join(' ') || 'Student';
 
   return (
@@ -163,7 +183,6 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
 
       <CardContent className="space-y-4">
         {!session ? (
-          /* ── Start Form ── */
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="space-y-2">
               <label className="text-sm font-medium">Session duration</label>
@@ -189,9 +208,8 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
             </p>
           </div>
         ) : (
-          /* ── Active Session ── */
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Time left</p>
                 <p className="text-2xl font-bold tabular-nums">{formatTimeLeft(timeLeft)}</p>
@@ -207,7 +225,11 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
                   )}
                 </p>
               </div>
-              <div className="rounded-lg border p-3 col-span-2 sm:col-span-1">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Attempted, not present</p>
+                <p className="text-2xl font-bold">{attemptedNotPresent.length}</p>
+              </div>
+              <div className="rounded-lg border p-3">
                 <p className="text-xs text-muted-foreground">Status</p>
                 <p className="text-sm font-medium">{expired ? 'Expired' : 'Open'}</p>
               </div>
@@ -254,11 +276,55 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
                           )}
                         </div>
                       </div>
+                      {!!s.attempts && s.attempts > 1 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {s.attempts} attempts
+                        </Badge>
+                      )}
                     </li>
                   ))}
                 </ul>
               )}
             </div>
+
+            {attemptedNotPresent.length > 0 && (
+              <div className="rounded-lg border">
+                <div className="border-b px-3 py-2">
+                  <p className="text-sm font-medium">
+                    Attempted, not marked present ({attemptedNotPresent.length})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    These students tried but weren't verified — worth a manual check.
+                  </p>
+                </div>
+                <ul className="divide-y max-h-64 overflow-y-auto">
+                  {attemptedNotPresent.map((s, idx) => (
+                    <li
+                      key={s._id ?? idx}
+                      className="flex items-center justify-between px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                        <div>
+                          <p className="font-medium">{getStudentName(s)}</p>
+                          {s.matricNumber && (
+                            <p className="text-xs text-muted-foreground">{s.matricNumber}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {formatAttemptStatus(s.lastStatus)}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {s.attempts} {s.attempts === 1 ? 'attempt' : 'attempts'}
+                        </Badge>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
       </CardContent>
