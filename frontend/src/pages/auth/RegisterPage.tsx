@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,27 +17,68 @@ import { useToast } from '@/hooks/use-toast';
 import { schoolService } from '@/services/school.service';
 
 // ── Validation ────────────────────────────────────────────────────────────────
-const registerSchema = z.object({
-  firstName: z.string().min(2, 'First name must be at least 2 characters'),
-  lastName:  z.string().min(2, 'Last name must be at least 2 characters'),
-  email:     z.string().email('Please enter a valid email address'),
-  password:  z.string().min(8, 'Password must be at least 8 characters'),
-  confirmPassword: z.string(),
-  phone: z.string().optional(),
-  // Student-only (validated manually based on role)
-  level: z.string().optional(),
-  matricNumber: z.string().optional(),
-  // Lecturer-only (validated manually based on role)
-  title: z.string().optional(),
-  qualification: z.string().optional(),
-  specialisation: z.string().optional(),
-}).superRefine((data, ctx) => {
-  if (data.password !== data.confirmPassword) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Passwords don't match", path: ['confirmPassword'] });
-  }
-});
+const NAME_RE = /^[A-Za-z][A-Za-z'’\- ]*$/;
+const PHONE_RE = /^\+?[0-9][0-9\s\-()]{6,19}$/;
+const MATRIC_RE = /^[A-Za-z0-9/\-]{4,20}$/;
 
-type RegisterFormData = z.infer<typeof registerSchema>;
+const makeRegisterSchema = (role: 'student' | 'lecturer') =>
+  z.object({
+    firstName: z.string().trim()
+      .min(1, 'First name is required')
+      .min(2, 'First name must be at least 2 characters')
+      .max(50, 'First name must be under 50 characters')
+      .regex(NAME_RE, 'Use letters only (hyphens and apostrophes allowed)'),
+    lastName: z.string().trim()
+      .min(1, 'Last name is required')
+      .min(2, 'Last name must be at least 2 characters')
+      .max(50, 'Last name must be under 50 characters')
+      .regex(NAME_RE, 'Use letters only (hyphens and apostrophes allowed)'),
+    email: z.string().trim()
+      .min(1, 'Email address is required')
+      .email('Please enter a valid email address, e.g. john@example.com'),
+    password: z.string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Za-z]/, 'Password must contain at least one letter')
+      .regex(/[0-9]/, 'Password must contain at least one number'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+    phone: z.string().trim()
+      .min(1, 'Phone number is required')
+      .regex(PHONE_RE, 'Enter a valid phone number, e.g. +2348012345678'),
+    // Student-only
+    level: z.string().optional(),
+    matricNumber: z.string().trim().optional(),
+    // Lecturer-only
+    title: z.string().optional(),
+    qualification: z.string().trim().optional(),
+    specialisation: z.string().trim().optional(),
+  }).superRefine((data, ctx) => {
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Passwords don't match", path: ['confirmPassword'] });
+    }
+    if (role === 'student') {
+      if (!data.level) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select your level', path: ['level'] });
+      }
+      if (data.matricNumber && !MATRIC_RE.test(data.matricNumber)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Matric number must be 4-20 characters (letters, numbers, / or -)',
+          path: ['matricNumber'],
+        });
+      }
+    }
+    if (role === 'lecturer') {
+      if (!data.title) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select a title', path: ['title'] });
+      }
+      if (!data.qualification || data.qualification.length < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Qualification is required', path: ['qualification'] });
+      }
+    }
+  });
+
+type RegisterFormData = z.infer<ReturnType<typeof makeRegisterSchema>>;
+
 
 interface SchoolOption { id: string; name: string; code: string; logo?: string; }
 interface DepartmentOption { id: string; name: string; code: string; }
@@ -106,10 +147,13 @@ export default function RegisterPage() {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
   const [loadingDepartments, setLoadingDepartments]    = useState(false);
 
+  const schema = useMemo(() => makeRegisterSchema(role as 'student' | 'lecturer'), [role]);
+
   const {
     register, handleSubmit, watch, setValue,
     formState: { errors },
-  } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterFormData>({ resolver: zodResolver(schema), mode: 'onBlur' });
+
 
   // ── Debounced school search ──────────────────────────────────────────────
   useEffect(() => {
@@ -146,20 +190,15 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     if (!selectedSchool) {
       toast({ title: 'Select your school', description: 'Please go back and choose your school.', variant: 'destructive' });
+      setStep(2);
       return;
     }
     if (!selectedDepartmentId) {
       toast({ title: 'Select your department', description: 'Please go back and choose your department.', variant: 'destructive' });
+      setStep(3);
       return;
     }
-    if (role === 'student' && !data.level) {
-      toast({ title: 'Level required', description: 'Please select your level.', variant: 'destructive' });
-      return;
-    }
-    if (role === 'lecturer' && (!data.title || !data.qualification)) {
-      toast({ title: 'Missing fields', description: 'Please select a title and enter your qualification.', variant: 'destructive' });
-      return;
-    }
+
 
     const result = await registerUser({
       role,
@@ -452,8 +491,9 @@ export default function RegisterPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number (Optional)</Label>
-                    <Input id="phone" placeholder="+234..." {...register('phone')} />
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input id="phone" type="tel" placeholder="+2348012345678" {...register('phone')} className={errors.phone ? 'border-destructive' : ''} />
+                    {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
                   </div>
 
                   {role === 'student' ? (
@@ -461,15 +501,17 @@ export default function RegisterPage() {
                       <div className="space-y-2">
                         <Label>Level</Label>
                         <Select value={watch('level')} onValueChange={v => setValue('level', v, { shouldValidate: true })}>
-                          <SelectTrigger><SelectValue placeholder="Select level" /></SelectTrigger>
+                          <SelectTrigger className={errors.level ? 'border-destructive' : ''}><SelectValue placeholder="Select level" /></SelectTrigger>
                           <SelectContent>
                             {LEVELS.map(l => <SelectItem key={l} value={String(l)}>{l} Level</SelectItem>)}
                           </SelectContent>
                         </Select>
+                        {errors.level && <p className="text-xs text-destructive">{errors.level.message}</p>}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="matricNumber">Matric Number (Optional)</Label>
-                        <Input id="matricNumber" placeholder="Auto-generated if blank" {...register('matricNumber')} />
+                        <Input id="matricNumber" placeholder="Auto-generated if blank" {...register('matricNumber')} className={errors.matricNumber ? 'border-destructive' : ''} />
+                        {errors.matricNumber && <p className="text-xs text-destructive">{errors.matricNumber.message}</p>}
                       </div>
                     </div>
                   ) : (
@@ -478,15 +520,17 @@ export default function RegisterPage() {
                         <div className="space-y-2">
                           <Label>Title</Label>
                           <Select value={watch('title')} onValueChange={v => setValue('title', v, { shouldValidate: true })}>
-                            <SelectTrigger><SelectValue placeholder="Select title" /></SelectTrigger>
+                            <SelectTrigger className={errors.title ? 'border-destructive' : ''}><SelectValue placeholder="Select title" /></SelectTrigger>
                             <SelectContent>
                               {TITLES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          {errors.title && <p className="text-xs text-destructive">{errors.title.message}</p>}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="qualification">Qualification</Label>
-                          <Input id="qualification" placeholder="e.g. PhD Computer Science" {...register('qualification')} />
+                          <Input id="qualification" placeholder="e.g. PhD Computer Science" {...register('qualification')} className={errors.qualification ? 'border-destructive' : ''} />
+                          {errors.qualification && <p className="text-xs text-destructive">{errors.qualification.message}</p>}
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -495,6 +539,7 @@ export default function RegisterPage() {
                       </div>
                     </>
                   )}
+
 
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
