@@ -59,7 +59,7 @@ export default function AuthPage() {
   const isLogin = location.pathname === '/login';
   const mode: 'login' | 'register' = isLogin ? 'login' : 'register';
 
-  const { login, register: registerUser, user, isLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [displayMode, setDisplayMode] = useState<'login' | 'register'>(mode);
