@@ -10,9 +10,6 @@ import {
   Loader2,
   ArrowLeft,
   BookOpen,
-  GraduationCap,
-  Users,
-  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,24 +23,7 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-const registerSchema = z
-  .object({
-    firstName: z.string().min(2, 'First name must be at least 2 characters'),
-    lastName: z.string().min(2, 'Last name must be at least 2 characters'),
-    email: z.string().email('Please enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string(),
-    phone: z.string().optional(),
-    department: z.string().optional(),
-    institution: z.string().optional(),
-  })
-  .refine((d) => d.password === d.confirmPassword, {
-    message: "Passwords don't match",
-    path: ['confirmPassword'],
-  });
-
 type LoginFormData = z.infer<typeof loginSchema>;
-type RegisterFormData = z.infer<typeof registerSchema>;
 
 // ─── Helpers ────────────────────────────────────────────────
 function getRoleRedirectPath(role: UserRole): string {
@@ -55,12 +35,6 @@ function getRoleRedirectPath(role: UserRole): string {
   };
   return paths[role];
 }
-
-const roles: { value: UserRole; label: string; icon: React.ReactNode }[] = [
-  { value: 'student', label: 'Student', icon: <GraduationCap className="h-5 w-5" /> },
-  { value: 'lecturer', label: 'Lecturer', icon: <Users className="h-5 w-5" /> },
-  { value: 'admin', label: 'Admin', icon: <Building2 className="h-5 w-5" /> },
-];
 
 // ─── Image config ───────────────────────────────────────────
 const AUTH_IMAGES = {
@@ -85,7 +59,7 @@ export default function AuthPage() {
   const isLogin = location.pathname === '/login';
   const mode: 'login' | 'register' = isLogin ? 'login' : 'register';
 
-  const { login, register: registerUser, user, isLoading } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [displayMode, setDisplayMode] = useState<'login' | 'register'>(mode);
@@ -182,27 +156,15 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-12 overflow-y-auto relative z-10">
         <div className="w-full max-w-md">
           <AnimatePresence mode="wait">
-            {displayMode === 'login' ? (
-              <motion.div
-                key="login-form"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-              >
-                <LoginForm onSwitch={() => handleSwitch('register')} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="register-form"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-              >
-                <RegisterForm onSwitch={() => handleSwitch('login')} />
-              </motion.div>
-            )}
+            <motion.div
+              key="login-form"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+            >
+              <LoginForm onSwitch={() => handleSwitch('register')} />
+            </motion.div>
           </AnimatePresence>
         </div>
       </div>
@@ -318,216 +280,6 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
           className="text-primary hover:underline font-semibold"
         >
           Create account
-        </button>
-      </p>
-    </>
-  );
-}
-
-// ─── Register Form ──────────────────────────────────────────
-function RegisterForm({ onSwitch }: { onSwitch: () => void }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<UserRole>('student');
-  const { register: registerUser, isLoading } = useAuth();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterFormData>({ resolver: zodResolver(registerSchema) });
-
-  const onSubmit = async (data: RegisterFormData) => {
-    const result = await registerUser({
-      email: data.email,
-      password: data.password,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      role: selectedRole,
-      phone: data.phone,
-      department: data.department,
-      institution: data.institution,
-    });
-    if (result.success) {
-      toast({
-        title: 'Account created!',
-        description: 'Please check your email to verify your account.',
-      });
-      navigate('/login');
-    } else {
-      toast({
-        title: 'Registration failed',
-        description: result.error || 'An account with this email already exists.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <>
-      {/* Mobile header */}
-      <div className="lg:hidden mb-6 text-center">
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back to Home</span>
-        </Link>
-      </div>
-
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold tracking-tight">Create Account</h2>
-        <p className="text-muted-foreground mt-2">Fill in your details to get started</p>
-      </div>
-
-      {/* Role Selection */}
-      <div className="mb-6">
-        <Label className="mb-3 block text-sm">I am a…</Label>
-        <div className="grid grid-cols-3 gap-3">
-          {roles.map((role) => (
-            <button
-              key={role.value}
-              type="button"
-              onClick={() => setSelectedRole(role.value)}
-              className={`p-3 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
-                selectedRole === role.value
-                  ? 'border-primary bg-primary/5 shadow-sm'
-                  : 'border-border hover:border-primary/40 hover:bg-muted/50'
-              }`}
-            >
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                  selectedRole === role.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground'
-                }`}
-              >
-                {role.icon}
-              </div>
-              <span
-                className={`text-xs font-medium ${
-                  selectedRole === role.value ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                {role.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="reg-firstName">First Name</Label>
-            <Input
-              id="reg-firstName"
-              placeholder="John"
-              {...register('firstName')}
-              className={errors.firstName ? 'border-destructive' : ''}
-            />
-            {errors.firstName && (
-              <p className="text-xs text-destructive">{errors.firstName.message}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reg-lastName">Last Name</Label>
-            <Input
-              id="reg-lastName"
-              placeholder="Doe"
-              {...register('lastName')}
-              className={errors.lastName ? 'border-destructive' : ''}
-            />
-            {errors.lastName && (
-              <p className="text-xs text-destructive">{errors.lastName.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="reg-email">Email Address</Label>
-          <Input
-            id="reg-email"
-            type="email"
-            placeholder="john@university.edu"
-            {...register('email')}
-            className={errors.email ? 'border-destructive' : ''}
-          />
-          {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="reg-institution">Institution (Optional)</Label>
-          <Input id="reg-institution" placeholder="University of Lagos" {...register('institution')} />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="reg-password">Password</Label>
-          <div className="relative">
-            <Input
-              id="reg-password"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Create a strong password"
-              {...register('password')}
-              className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="reg-confirmPassword">Confirm Password</Label>
-          <div className="relative">
-            <Input
-              id="reg-confirmPassword"
-              type={showConfirmPassword ? 'text' : 'password'}
-              placeholder="Confirm your password"
-              {...register('confirmPassword')}
-              className={errors.confirmPassword ? 'border-destructive pr-10' : 'pr-10'}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          {errors.confirmPassword && (
-            <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-          )}
-        </div>
-
-        <Button type="submit" className="w-full h-11 text-base" disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creating account…
-            </>
-          ) : (
-            'Create Account'
-          )}
-        </Button>
-      </form>
-
-      <p className="text-center text-sm text-muted-foreground mt-6">
-        Already have an account?{' '}
-        <button
-          type="button"
-          onClick={onSwitch}
-          className="text-primary hover:underline font-semibold"
-        >
-          Sign in
         </button>
       </p>
     </>

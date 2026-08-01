@@ -29,6 +29,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Auth pages
 const AuthPage = lazy(() => import("./pages/auth/AuthPage"));
+const RegisterPage = lazy(() => import("./pages/auth/RegisterPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/auth/ForgotPasswordPage"));
 const PendingApprovalPage = lazy(() => import("./pages/auth/PendingApprovalPage"));
 
@@ -143,7 +144,7 @@ const App = () => (
               
               {/* Auth Pages - Unified with cinematic transitions */}
               <Route path="/login" element={<AuthPage />} />
-              <Route path="/register" element={<AuthPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/pending-approval" element={<PendingApprovalPage />} />
               
