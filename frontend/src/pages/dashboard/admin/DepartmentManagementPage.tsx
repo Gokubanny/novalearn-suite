@@ -25,7 +25,6 @@ import { schoolService } from '@/services/school.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { useToast } from '@/hooks/use-toast';
-import api from '@/lib/api';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: Home },
@@ -183,8 +182,9 @@ export default function DepartmentManagementPage() {
     if (!deactivateTarget) return;
     setDeactivating(true);
     try {
-      // DELETE /api/school/departments/:id sets isActive: false on backend
-      await api.delete(`/api/school/departments/${deactivateTarget.id}`);
+      // Sets isActive: false on the backend (soft delete) — routed through
+      // schoolService now instead of a raw api.delete() call.
+      await schoolService.deleteDepartment(deactivateTarget.id);
       toast({ title: `"${deactivateTarget.name}" has been deactivated.` });
       setDeactivateTarget(null);
       fetchDepartments();

@@ -12,6 +12,7 @@ import Notification from '../notification/notification.model';
 import { AuthRequest, ApprovalStatus, NotificationType } from '../../types';
 import { AppError } from '../../middleware/error.middleware';
 import { sendEmail, emailTemplates } from '../../utils/email';
+import { getCurrentSession } from '../../utils/helpers';
 import { uploadImage } from '../../config/cloudinary';
 import fs from 'fs';
 
@@ -33,7 +34,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Find user with password
     const user = await User.findOne({ email }).select('+password');
-    
+
     if (!user) {
       res.status(401).json({
         success: false,
@@ -104,9 +105,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const token = jwt.sign(
-      { 
-        id: user._id, 
-        role: user.role, 
+      {
+        id: user._id,
+        role: user.role,
         email: user.email,
         school: profileData?.school || null
       },
@@ -213,7 +214,8 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       department: departmentId,
       level: level || 100,
       matricNumber: matricNumber || `STU${Date.now().toString().slice(-6)}`,
-      approvalStatus: ApprovalStatus.PENDING
+      approvalStatus: ApprovalStatus.PENDING,
+      currentSession: getCurrentSession(),
     });
 
     // Notify school admin
@@ -406,7 +408,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     // Send email with reset link
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
-    
+
     try {
       await sendEmail({
         to: user.email,
@@ -422,7 +424,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
-      
+
       res.status(500).json({
         success: false,
         message: 'Could not send reset email. Please try again.'
@@ -633,7 +635,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     let profileData = {};
-    
+
     // Get profile data based on role
     if (user.role === 'student') {
       const student = await Student.findOne({ user: userId })
@@ -699,7 +701,7 @@ export const searchSchoolsPublic = async (req: Request, res: Response): Promise<
     success: true,
     message: 'Schools fetched.',
     data: schools.map(s => ({
-      id:   s._id,
+      id: s._id,
       name: s.name,
       code: s.code,
       logo: s.logo,

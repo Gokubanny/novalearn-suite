@@ -1,12 +1,12 @@
 import api from '../lib/api';
 
 export const schoolService = {
-  // ── Public (no auth — used during registration) ──────────────────────────────
+
   searchSchools: (query: string) =>
-    api.get('/api/school/public/search', { params: { q: query } }),
+    api.get('/api/auth/public/search', { params: { q: query } }),
 
   getPublicDepartments: (schoolId: string) =>
-    api.get(`/api/school/public/${schoolId}/departments`),
+    api.get(`/api/auth/public/${schoolId}/departments`),
 
   // ── Authenticated ──────────────────────────────────────────────────────────
   getStats: () => api.get('/api/school/stats'),
@@ -23,6 +23,8 @@ export const schoolService = {
   getDepartments: () => api.get('/api/school/departments'),
   updateDepartment: (id: string, data: any) =>
     api.patch(`/api/school/departments/${id}`, data),
+  deleteDepartment: (id: string) =>
+    api.delete(`/api/school/departments/${id}`),
   getPendingStudents: () => api.get('/api/school/students/pending'),
   getAllStudents: (params?: any) => api.get('/api/school/students', { params }),
   getStudentProfile: (studentId: string) =>

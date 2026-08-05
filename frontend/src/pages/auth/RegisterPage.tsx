@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye, EyeOff, Loader2, ArrowLeft, GraduationCap, Users,
-  Building2, Search, CheckCircle2, ChevronLeft, ChevronRight, Check,
+  Building2, Search, CheckCircle2, ChevronLeft, ChevronRight, Check, Circle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -232,6 +232,16 @@ export default function RegisterPage() {
   };
 
   const selectedDepartment = departments.find(d => d.id === selectedDepartmentId);
+
+  // ── Live password requirements ────────────────────────────────────────────
+  // Same rules already enforced by the zod schema above — this just makes
+  // them visible as the user types, instead of only surfacing on blur.
+  const passwordValue = watch('password') || '';
+  const passwordRequirements = [
+    { label: 'At least 8 characters', met: passwordValue.length >= 8 },
+    { label: 'At least one letter', met: /[A-Za-z]/.test(passwordValue) },
+    { label: 'At least one number', met: /[0-9]/.test(passwordValue) },
+  ];
 
   return (
     <div className="min-h-screen flex">
@@ -559,7 +569,19 @@ export default function RegisterPage() {
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                    {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+                    <ul className="space-y-1 pt-1">
+                      {passwordRequirements.map(req => (
+                        <li
+                          key={req.label}
+                          className={`flex items-center gap-1.5 text-xs transition-colors ${
+                            req.met ? 'text-green-600' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {req.met ? <Check className="h-3 w-3 flex-shrink-0" /> : <Circle className="h-3 w-3 flex-shrink-0" />}
+                          {req.label}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
 
                   <div className="space-y-2">
