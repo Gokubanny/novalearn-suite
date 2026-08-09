@@ -23,7 +23,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       res.status(400).json({
         success: false,
@@ -32,7 +31,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Find user with password
     const user = await User.findOne({ email }).select('+password');
     
     if (!user) {
@@ -43,7 +41,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if user is active
     if (!user.isActive) {
       res.status(401).json({
         success: false,
@@ -52,7 +49,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check password
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
       res.status(401).json({
@@ -62,7 +58,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if user has been approved (for students and lecturers)
     let approvalStatus = 'approved';
     let profileData = null;
 
@@ -102,11 +97,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate JWT
     const secret = process.env.JWT_SECRET;
     if (!secret) {
       throw new Error('JWT_SECRET is not defined');
@@ -123,7 +116,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '7d' }
     );
 
-    // Prepare user data for response
     const userData = {
       id: user._id,
       firstName: user.firstName,
@@ -166,7 +158,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       matricNumber,
     } = req.body;
 
-    // Validate input
     if (!firstName || !lastName || !email || !password || !schoolCode || !departmentId) {
       res.status(400).json({
         success: false,
@@ -175,7 +166,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       res.status(409).json({
@@ -185,7 +175,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Find school
     const school = await School.findOne({ code: schoolCode.toUpperCase(), isActive: true });
     if (!school) {
       res.status(404).json({
@@ -195,7 +184,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Check department
     const department = await Department.findOne({ _id: departmentId, school: school._id });
     if (!department) {
       res.status(404).json({
@@ -205,7 +193,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Create user
     const user = await User.create({
       firstName,
       lastName,
@@ -215,7 +202,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       role: 'student'
     });
 
-    // Create student profile
     const student = await Student.create({
       user: user._id,
       school: school._id,
@@ -226,7 +212,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       currentSession: getCurrentSession(),
     });
 
-    // Notify school admin
     try {
       await Notification.create({
         recipient: school.admin,
@@ -282,7 +267,6 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       specialisation,
     } = req.body;
 
-    // Validate input
     if (!firstName || !lastName || !email || !password || !schoolCode || !departmentId) {
       res.status(400).json({
         success: false,
@@ -291,7 +275,6 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       res.status(409).json({
@@ -301,7 +284,6 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Find school
     const school = await School.findOne({ code: schoolCode.toUpperCase(), isActive: true });
     if (!school) {
       res.status(404).json({
@@ -311,7 +293,6 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Check department
     const department = await Department.findOne({ _id: departmentId, school: school._id });
     if (!department) {
       res.status(404).json({
@@ -321,7 +302,6 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Create user
     const user = await User.create({
       firstName,
       lastName,
@@ -336,13 +316,13 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       user: user._id,
       school: school._id,
       department: departmentId,
+      staffId: `STAFF${Date.now().toString().slice(-6)}`,
       title: title || 'Lecturer',
       qualification: qualification || '',
       specialisation: specialisation || '',
       approvalStatus: ApprovalStatus.PENDING
     });
 
-    // Notify school admin
     try {
       await Notification.create({
         recipient: school.admin,
@@ -403,7 +383,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = crypto
       .createHash('sha256')
@@ -414,7 +393,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     await user.save({ validateBeforeSave: false });
 
-    // Send email with reset link
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
     
     try {
@@ -428,7 +406,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       });
     } catch (error) {
       console.error('Email sending failed:', error);
-      // Reset token fields if email fails
       user.passwordResetToken = undefined;
       user.passwordResetExpires = undefined;
       await user.save({ validateBeforeSave: false });
@@ -467,7 +444,6 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Hash token
     const resetTokenHash = crypto
       .createHash('sha256')
       .update(token)
@@ -486,7 +462,6 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Update password
     user.password = password;
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
@@ -644,7 +619,6 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
 
     let profileData = {};
     
-    // Get profile data based on role
     if (user.role === 'student') {
       const student = await Student.findOne({ user: userId })
         .populate('department', 'name code');
