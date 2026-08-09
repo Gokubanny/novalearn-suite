@@ -64,10 +64,22 @@ export const getAllSchools = async (req: AuthRequest, res: Response): Promise<vo
     School.countDocuments(filter),
   ]);
 
+  // Same per-school count computation getSchool() already does — just
+  // applied across the whole page so the list view isn't stuck at 0.
+  const schoolsWithCounts = await Promise.all(
+    schools.map(async (school) => {
+      const [studentCount, lecturerCount] = await Promise.all([
+        Student.countDocuments({ school: school._id }),
+        Lecturer.countDocuments({ school: school._id }),
+      ]);
+      return { ...school.toObject(), studentCount, lecturerCount };
+    })
+  );
+
   res.status(200).json({
     success: true,
     message: 'Schools fetched.',
-    data: schools,
+    data: schoolsWithCounts,
     pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
   });
 };
@@ -80,11 +92,9 @@ export const createSchool = async (req: AuthRequest, res: Response): Promise<voi
     adminEmail, adminPassword, plan,
   } = req.body;
 
-  // Check code is unique
   const existing = await School.findOne({ code: code.toUpperCase() });
   if (existing) throw new AppError('A school with this code already exists.', 409);
 
-  // Create admin user
   const adminUser = await User.create({
     firstName: adminFirstName,
     lastName: adminLastName,
@@ -94,7 +104,6 @@ export const createSchool = async (req: AuthRequest, res: Response): Promise<voi
     isEmailVerified: true,
   });
 
-  // Set subscription limits based on plan
   const planLimits: Record<string, { maxStudents: number; maxLecturers: number }> = {
     basic: { maxStudents: 500, maxLecturers: 50 },
     pro: { maxStudents: 2000, maxLecturers: 200 },
@@ -103,7 +112,7 @@ export const createSchool = async (req: AuthRequest, res: Response): Promise<voi
   const limits = planLimits[plan || 'basic'];
 
   const endDate = new Date();
-  endDate.setFullYear(endDate.getFullYear() + 1); // 1 year subscription
+  endDate.setFullYear(endDate.getFullYear() + 1);
 
   const school = await School.create({
     name, code, address, state,

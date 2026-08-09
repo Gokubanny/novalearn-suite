@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Home, Building2, Users, DollarSign, FileText, Newspaper, Tag, Settings,
   Search, PlusCircle, MoreHorizontal, CheckCircle, Clock, Loader2,
-  ChevronLeft, ChevronRight, Check,
+  ChevronLeft, ChevronRight, Check, GraduationCap,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -103,10 +103,6 @@ const NIGERIA_STATES = [
 ];
 
 // ── Form field ─────────────────────────────────────────────────────────────────
-// Moved to module scope (outside AddSchoolDialog) so it's a stable component
-// reference across renders. When it was defined inside AddSchoolDialog, every
-// keystroke re-created this function, so React unmounted/remounted the
-// underlying <input> on every character — hence losing focus after each one.
 function Field({ label, value, error, onChange, type = 'text', placeholder = '', optional = false }: {
   label: string;
   value: string;
@@ -142,7 +138,6 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
   const [saving, setSaving]   = useState(false);
   const [errors, setErrors]   = useState<Record<string, string>>({});
 
-  // Reset when opened
   useEffect(() => {
     if (open) { setStep(1); setForm(EMPTY_FORM); setErrors({}); }
   }, [open]);
@@ -150,7 +145,6 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
   const set = (field: keyof typeof EMPTY_FORM, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
-  // ── Per-step validation ──────────────────────────────────────────────────
   function validateStep1(): boolean {
     const e: Record<string, string> = {};
     if (!form.name.trim())    e.name    = 'School name is required';
@@ -212,7 +206,6 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
 
         <StepIndicator current={step} />
 
-        {/* ── Step 1: School Info ── */}
         {step === 1 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -250,7 +243,6 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
           </div>
         )}
 
-        {/* ── Step 2: Admin Account ── */}
         {step === 2 && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground bg-muted/50 rounded-lg p-3">
@@ -283,10 +275,8 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
           </div>
         )}
 
-        {/* ── Step 3: Plan ── */}
         {step === 3 && (
           <div className="space-y-4">
-            {/* Summary */}
             <div className="rounded-lg border p-4 space-y-1 text-sm">
               <p className="font-semibold">{form.name} <span className="font-mono text-muted-foreground text-xs ml-1">({form.code.toUpperCase()})</span></p>
               <p className="text-muted-foreground">{form.address}, {form.state}</p>
@@ -297,7 +287,6 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
               </div>
             </div>
 
-            {/* Plan picker */}
             <div className="space-y-2">
               <Label>Subscription Plan</Label>
               <div className="grid grid-cols-3 gap-2">
@@ -340,12 +329,119 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
   );
 }
 
+// ── School Details Dialog ─────────────────────────────────────────────────────
+function SchoolDetailsDialog({ schoolId, onClose }: { schoolId: string | null; onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [school, setSchool]   = useState<any>(null);
+
+  useEffect(() => {
+    if (!schoolId) { setSchool(null); return; }
+    setLoading(true);
+    superAdminService.getSchool(schoolId)
+      .then(res => setSchool(res.data?.data ?? null))
+      .catch(() => setSchool(null))
+      .finally(() => setLoading(false));
+  }, [schoolId]);
+
+  return (
+    <Dialog open={!!schoolId} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>School Details</DialogTitle>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !school ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Could not load school details.</p>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <div>
+              <p className="text-lg font-semibold">{school.name}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="font-mono text-xs text-muted-foreground">{school.code}</span>
+                <Badge variant={school.isActive ? 'default' : 'secondary'}>
+                  {school.isActive ? 'Active' : 'Suspended'}
+                </Badge>
+                <Badge variant="outline">{school.subscription?.plan ?? 'basic'}</Badge>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <GraduationCap className="h-3.5 w-3.5" /> Students
+                </p>
+                <p className="text-xl font-bold">{school.studentCount ?? 0}</p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Users className="h-3.5 w-3.5" /> Lecturers
+                </p>
+                <p className="text-xl font-bold">{school.lecturerCount ?? 0}</p>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-muted-foreground">{school.address}, {school.state}, {school.country}</p>
+              <p className="text-muted-foreground">{school.phone} · {school.email}</p>
+              {school.website && (
+                <p className="text-muted-foreground">
+                  <a href={school.website} target="_blank" rel="noreferrer" className="underline">
+                    {school.website}
+                  </a>
+                </p>
+              )}
+            </div>
+
+            <div className="pt-2 border-t">
+              <p className="font-medium">Admin</p>
+              <p className="text-muted-foreground">
+                {school.admin?.firstName} {school.admin?.lastName} · {school.admin?.email}
+              </p>
+              {school.admin?.phone && <p className="text-muted-foreground">{school.admin.phone}</p>}
+            </div>
+
+            <div className="pt-2 border-t">
+              <p className="font-medium">Subscription</p>
+              <p className="text-muted-foreground">
+                {school.subscription?.plan} · up to {school.subscription?.maxStudents} students,{' '}
+                {school.subscription?.maxLecturers} lecturers
+              </p>
+              {school.subscription?.endDate && (
+                <p className="text-muted-foreground">
+                  Renews/expires{' '}
+                  {new Date(school.subscription.endDate).toLocaleDateString('en-US', {
+                    month: 'short', day: 'numeric', year: 'numeric',
+                  })}
+                </p>
+              )}
+            </div>
+
+            {school.createdAt && (
+              <p className="text-xs text-muted-foreground pt-1">
+                Joined{' '}
+                {new Date(school.createdAt).toLocaleDateString('en-US', {
+                  month: 'long', day: 'numeric', year: 'numeric',
+                })}
+              </p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SuperAdminInstitutionsPage() {
-  const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [search, setSearch]             = useState('');
-  const [addOpen, setAddOpen]           = useState(false);
+  const [institutions, setInstitutions]     = useState<Institution[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [search, setSearch]                 = useState('');
+  const [addOpen, setAddOpen]               = useState(false);
+  const [detailsSchoolId, setDetailsSchoolId] = useState<string | null>(null);
 
   useEffect(() => { fetchInstitutions(); }, []);
 
@@ -407,7 +503,6 @@ export default function SuperAdminInstitutionsPage() {
           </Button>
         </div>
 
-        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -439,7 +534,6 @@ export default function SuperAdminInstitutionsPage() {
           </Card>
         </div>
 
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -502,7 +596,9 @@ export default function SuperAdminInstitutionsPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>View Details</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setDetailsSchoolId(inst.id)}>
+                        View Details
+                      </DropdownMenuItem>
                       <DropdownMenuItem
                         className={inst.is_active ? 'text-destructive' : 'text-green-600'}
                         onClick={() => handleToggleStatus(inst.id, inst.is_active)}
@@ -522,6 +618,11 @@ export default function SuperAdminInstitutionsPage() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={fetchInstitutions}
+      />
+
+      <SchoolDetailsDialog
+        schoolId={detailsSchoolId}
+        onClose={() => setDetailsSchoolId(null)}
       />
     </DashboardLayout>
   );
