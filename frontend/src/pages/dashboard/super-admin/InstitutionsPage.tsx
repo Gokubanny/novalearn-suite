@@ -102,6 +102,35 @@ const NIGERIA_STATES = [
   'Yobe','Zamfara',
 ];
 
+// ── Form field ─────────────────────────────────────────────────────────────────
+// Moved to module scope (outside AddSchoolDialog) so it's a stable component
+// reference across renders. When it was defined inside AddSchoolDialog, every
+// keystroke re-created this function, so React unmounted/remounted the
+// underlying <input> on every character — hence losing focus after each one.
+function Field({ label, value, error, onChange, type = 'text', placeholder = '', optional = false }: {
+  label: string;
+  value: string;
+  error?: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+  optional?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}{optional && <span className="text-muted-foreground ml-1 text-xs">(optional)</span>}</Label>
+      <Input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={error ? 'border-destructive' : ''}
+      />
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 // ── Add School Dialog ─────────────────────────────────────────────────────────
 function AddSchoolDialog({ open, onClose, onCreated }: {
   open: boolean;
@@ -171,23 +200,6 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
     }
   }
 
-  const Field = ({ label, field, type = 'text', placeholder = '', optional = false }: {
-    label: string; field: keyof typeof EMPTY_FORM; type?: string;
-    placeholder?: string; optional?: boolean;
-  }) => (
-    <div className="space-y-1.5">
-      <Label>{label}{optional && <span className="text-muted-foreground ml-1 text-xs">(optional)</span>}</Label>
-      <Input
-        type={type}
-        placeholder={placeholder}
-        value={form[field]}
-        onChange={e => set(field, e.target.value)}
-        className={errors[field] ? 'border-destructive' : ''}
-      />
-      {errors[field] && <p className="text-xs text-destructive">{errors[field]}</p>}
-    </div>
-  );
-
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -205,9 +217,9 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <Field label="School Name" field="name" placeholder="University of Port Harcourt" />
+                <Field label="School Name" value={form.name} error={errors.name} onChange={v => set('name', v)} placeholder="University of Port Harcourt" />
               </div>
-              <Field label="School Code" field="code" placeholder="UNIPH" />
+              <Field label="School Code" value={form.code} error={errors.code} onChange={v => set('code', v)} placeholder="UNIPH" />
               <div className="space-y-1.5">
                 <Label>State</Label>
                 <Select value={form.state} onValueChange={v => set('state', v)}>
@@ -221,12 +233,12 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
                 {errors.state && <p className="text-xs text-destructive">{errors.state}</p>}
               </div>
               <div className="col-span-2">
-                <Field label="Address" field="address" placeholder="PMB 5323, Port Harcourt" />
+                <Field label="Address" value={form.address} error={errors.address} onChange={v => set('address', v)} placeholder="PMB 5323, Port Harcourt" />
               </div>
-              <Field label="Phone" field="phone" placeholder="+234 84 230 000" />
-              <Field label="School Email" field="email" placeholder="info@uniph.edu.ng" />
+              <Field label="Phone" value={form.phone} error={errors.phone} onChange={v => set('phone', v)} placeholder="+234 84 230 000" />
+              <Field label="School Email" value={form.email} error={errors.email} onChange={v => set('email', v)} placeholder="info@uniph.edu.ng" />
               <div className="col-span-2">
-                <Field label="Website" field="website" placeholder="https://uniph.edu.ng" optional />
+                <Field label="Website" value={form.website} onChange={v => set('website', v)} placeholder="https://uniph.edu.ng" optional />
               </div>
             </div>
 
@@ -247,13 +259,13 @@ function AddSchoolDialog({ open, onClose, onCreated }: {
             </p>
 
             <div className="grid grid-cols-2 gap-4">
-              <Field label="First Name" field="adminFirstName" placeholder="Emeka" />
-              <Field label="Last Name"  field="adminLastName"  placeholder="Johnson" />
+              <Field label="First Name" value={form.adminFirstName} error={errors.adminFirstName} onChange={v => set('adminFirstName', v)} placeholder="Emeka" />
+              <Field label="Last Name"  value={form.adminLastName}  error={errors.adminLastName}  onChange={v => set('adminLastName', v)}  placeholder="Johnson" />
               <div className="col-span-2">
-                <Field label="Admin Email" field="adminEmail" placeholder="admin@uniph.edu.ng" />
+                <Field label="Admin Email" value={form.adminEmail} error={errors.adminEmail} onChange={v => set('adminEmail', v)} placeholder="admin@uniph.edu.ng" />
               </div>
               <div className="col-span-2">
-                <Field label="Temporary Password" field="adminPassword" type="password" placeholder="Min. 8 characters" />
+                <Field label="Temporary Password" value={form.adminPassword} error={errors.adminPassword} onChange={v => set('adminPassword', v)} type="password" placeholder="Min. 8 characters" />
                 <p className="text-xs text-muted-foreground mt-1">
                   The admin should change this on first login.
                 </p>
