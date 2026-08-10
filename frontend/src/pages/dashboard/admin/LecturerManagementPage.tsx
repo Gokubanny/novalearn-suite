@@ -64,13 +64,16 @@ function LecturerProfileDialog({
   onApprove:  (id: string) => void;
   onReject:   (id: string) => void;
 }) {
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [acting,  setActing]  = useState(false);
+  const [profile, setProfile]         = useState<any>(null);
+  const [loading, setLoading]         = useState(false);
+  const [acting,  setActing]          = useState(false);
+  const [actingWhich, setActingWhich] = useState<'approve' | 'reject' | null>(null);
 
   useEffect(() => {
     if (!open || !lecturerId) return;
     setProfile(null);
+    setActing(false);
+    setActingWhich(null);
     setLoading(true);
     schoolService.getLecturerProfile(lecturerId)
       .then(res => setProfile(res.data?.data))
@@ -187,19 +190,27 @@ function LecturerProfileDialog({
         {profile && profile.approvalStatus === 'pending' && lecturerId && (
           <DialogFooter className="gap-2">
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
+              className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive gap-1.5"
               disabled={acting}
-              onClick={() => { setActing(true); onReject(lecturerId); }}
+              onClick={() => { setActing(true); setActingWhich('reject'); onReject(lecturerId); }}
             >
-              <UserX className="h-4 w-4 mr-1" /> Reject
+              {acting && actingWhich === 'reject'
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <UserX className="h-4 w-4" />}
+              Reject
             </Button>
             <Button
               size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
               disabled={acting}
-              onClick={() => { setActing(true); onApprove(lecturerId); }}
+              onClick={() => { setActing(true); setActingWhich('approve'); onApprove(lecturerId); }}
             >
-              <UserCheck className="h-4 w-4 mr-1" /> Approve
+              {acting && actingWhich === 'approve'
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <UserCheck className="h-4 w-4" />}
+              Approve
             </Button>
           </DialogFooter>
         )}
@@ -213,10 +224,14 @@ export default function LecturerManagementPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [lecturers, setLecturers] = useState<LecturerRow[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState('');
-  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [lecturers, setLecturers]     = useState<LecturerRow[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [search, setSearch]           = useState('');
+  const [viewingId, setViewingId]     = useState<string | null>(null);
+  // Tracks in-flight row-level approve/reject so only the acted-on row's
+  // buttons show a spinner, instead of a single global "busy" flag.
+  const [actingId, setActingId]       = useState<string | null>(null);
+  const [actingAction, setActingAction] = useState<'approve' | 'reject' | null>(null);
 
   useEffect(() => { if (user) fetchLecturers(); }, [user]);
 
@@ -239,6 +254,8 @@ export default function LecturerManagementPage() {
   }
 
   async function handleApprove(id: string) {
+    setActingId(id);
+    setActingAction('approve');
     try {
       await schoolService.approveLecturer(id);
       toast({ title: 'Lecturer approved' });
@@ -246,10 +263,14 @@ export default function LecturerManagementPage() {
     } catch (err: any) {
       toast({ title: 'Failed', description: err?.message, variant: 'destructive' });
     }
+    setActingId(null);
+    setActingAction(null);
     setViewingId(null);
   }
 
   async function handleReject(id: string) {
+    setActingId(id);
+    setActingAction('reject');
     try {
       await schoolService.rejectLecturer(id);
       toast({ title: 'Lecturer rejected' });
@@ -257,7 +278,13 @@ export default function LecturerManagementPage() {
     } catch (err: any) {
       toast({ title: 'Failed', description: err?.message, variant: 'destructive' });
     }
+    setActingId(null);
+    setActingAction(null);
     setViewingId(null);
+  }
+
+  function handleSendEmail(email: string) {
+    window.location.href = `mailto:${email}`;
   }
 
   const filtered = lecturers.filter(l => {
@@ -301,7 +328,6 @@ export default function LecturerManagementPage() {
         </div>
 
         <div className="relative">
-          
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search lecturers…"
@@ -321,40 +347,80 @@ export default function LecturerManagementPage() {
           <Card>
             <CardHeader><CardTitle>All Lecturers ({filtered.length})</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {filtered.map(lecturer => (
-                <div key={lecturer.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-11 h-11">
-                      <AvatarFallback className="bg-primary/10 text-primary font-bold">
-                        {lecturer.first_name[0]}{lecturer.last_name[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{lecturer.first_name} {lecturer.last_name}</p>
-                        <StatusBadge status={lecturer.approval_status} />
+              {filtered.map(lecturer => {
+                const isActingOnThisRow = actingId === lecturer.id;
+                return (
+                  <div key={lecturer.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <Avatar className="w-11 h-11">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">
+                          {lecturer.first_name[0]}{lecturer.last_name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{lecturer.first_name} {lecturer.last_name}</p>
+                          <StatusBadge status={lecturer.approval_status} />
+                        </div>
+                        <p className="text-sm text-muted-foreground">{lecturer.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {lecturer.department || '—'} · {lecturer.staff_id} · {lecturer.courseCount} course{lecturer.courseCount !== 1 ? 's' : ''}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">{lecturer.email}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {lecturer.department || '—'} · {lecturer.staff_id} · {lecturer.courseCount} course{lecturer.courseCount !== 1 ? 's' : ''}
-                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Quick approve/reject right on the row — the dialog is
+                          for reviewing details first, this is for when you
+                          already know what you're doing. */}
+                      {lecturer.approval_status === 'pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white gap-1.5"
+                            disabled={isActingOnThisRow}
+                            onClick={() => handleApprove(lecturer.id)}
+                          >
+                            {isActingOnThisRow && actingAction === 'approve'
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <UserCheck className="h-4 w-4" />}
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive gap-1.5"
+                            disabled={isActingOnThisRow}
+                            onClick={() => handleReject(lecturer.id)}
+                          >
+                            {isActingOnThisRow && actingAction === 'reject'
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <UserX className="h-4 w-4" />}
+                            Reject
+                          </Button>
+                        </>
+                      )}
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">More actions for {lecturer.first_name} {lecturer.last_name}</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setViewingId(lecturer.id)}>
+                            <Eye className="mr-2 h-4 w-4" /> View Profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSendEmail(lecturer.email)}>
+                            <Mail className="mr-2 h-4 w-4" /> Send Email
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm"><MoreHorizontal className="h-4 w-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setViewingId(lecturer.id)}>
-                        <Eye className="mr-2 h-4 w-4" /> View Profile
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Mail className="mr-2 h-4 w-4" /> Send Email
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}
