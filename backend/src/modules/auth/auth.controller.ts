@@ -18,6 +18,41 @@ import fs from 'fs';
 
 // ── AUTHENTICATION FUNCTIONS ──────────────────────────────────────────────────
 
+// ── HELPER: Generate the next matric number for a department ────────────────
+// Atomically advances the department's sequence counter and formats the
+// result using its configured prefix/separator/year style. Resets to 1
+// whenever the current academic session differs from the one the counter
+// was last used for. Falls back to the school's own code when the
+// department has no matricPrefix override set.
+async function generateMatricNumber(departmentId: any, schoolCode: string): Promise<string> {
+  const currentSession = getCurrentSession();
+
+  let dept = await Department.findOneAndUpdate(
+    { _id: departmentId, matricLastSession: currentSession },
+    { $inc: { matricSequence: 1 } },
+    { new: true }
+  );
+
+  if (!dept) {
+    dept = await Department.findOneAndUpdate(
+      { _id: departmentId },
+      { $set: { matricSequence: 1, matricLastSession: currentSession } },
+      { new: true }
+    );
+  }
+
+  if (!dept) throw new AppError('Department not found while generating matric number.', 404);
+
+  const prefix = (dept.matricPrefix || schoolCode).toUpperCase();
+  const separator = dept.matricSeparator || '/';
+  const year = dept.matricYearFormat === 'short'
+    ? String(new Date().getFullYear()).slice(-2)
+    : String(new Date().getFullYear());
+  const seq = String(dept.matricSequence).padStart(dept.matricSequenceDigits || 3, '0');
+
+  return `${prefix}${separator}${dept.code}${separator}${year}${separator}${seq}`;
+}
+
 // ── LOGIN ──────────────────────────────────────────────────────────────────────
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -90,9 +125,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     } else if (user.role === 'school_admin') {
       const school = await School.findOne({ admin: user._id });
       if (school) {
-        // Deliberately minimal — just the school id, not school.toObject().
-        // Spreading the full School document into userData below would leak
-        // subscription/logo/etc. into the user's own profile response.
         profileData = { school: school._id };
       }
     }
@@ -155,7 +187,6 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       schoolCode,
       departmentId,
       level,
-      matricNumber,
     } = req.body;
 
     if (!firstName || !lastName || !email || !password || !schoolCode || !departmentId) {
@@ -193,6 +224,10 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Generate the real matric number before creating any records, so a
+    // generation problem can't leave an orphaned User with no Student profile.
+    const matricNumber = await generateMatricNumber(department._id, school.code);
+
     const user = await User.create({
       firstName,
       lastName,
@@ -207,7 +242,7 @@ export const registerStudent = async (req: Request, res: Response): Promise<void
       school: school._id,
       department: departmentId,
       level: level || 100,
-      matricNumber: matricNumber || `STU${Date.now().toString().slice(-6)}`,
+      matricNumber,
       approvalStatus: ApprovalStatus.PENDING,
       currentSession: getCurrentSession(),
     });
@@ -311,7 +346,6 @@ export const registerLecturer = async (req: Request, res: Response): Promise<voi
       role: 'lecturer'
     });
 
-    // Create lecturer profile
     const lecturer = await Lecturer.create({
       user: user._id,
       school: school._id,
@@ -390,7 +424,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       .digest('hex');
 
     user.passwordResetToken = resetTokenHash;
-    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save({ validateBeforeSave: false });
 
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
