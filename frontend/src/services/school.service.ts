@@ -10,6 +10,7 @@ export const schoolService = {
 
   // ── Authenticated ──────────────────────────────────────────────────────────
   getStats: () => api.get('/api/school/stats'),
+  getAttendanceAnalytics: () => api.get('/api/school/attendance-analytics'),
   getProfile: () => api.get('/api/school/profile'),
   updateProfile: (data: any) => api.patch('/api/school/profile', data),
   uploadLogo: (file: File) => {

@@ -4,9 +4,10 @@ import Department from '../department/department.model';
 import Student from '../student/student.model';
 import Lecturer from '../lecturer/lecturer.model';
 import Course from '../course/course.model';
+import Attendance from '../attendance/attendance.model';
 import User from '../auth/user.model';
 import Notification from '../notification/notification.model';
-import { AuthRequest, ApprovalStatus, NotificationType } from '../../types';
+import { AuthRequest, ApprovalStatus, AttendanceStatus, NotificationType } from '../../types';
 import { AppError } from '../../middleware/error.middleware';
 import { sendEmail, emailTemplates } from '../../utils/email';
 import { uploadImage } from '../../config/cloudinary';
@@ -38,6 +39,39 @@ export const getSchoolStats = async (req: AuthRequest, res: Response): Promise<v
       pendingLecturers, totalCourses, totalDepartments,
       subscription: school?.subscription,
     },
+  });
+};
+
+// ── GET ATTENDANCE ANALYTICS ──────────────────────────────────────────────────
+export const getAttendanceAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
+  const schoolId = req.user?.school;
+
+  const records = await Attendance.find({ school: schoolId })
+    .populate({ path: 'course', select: 'department', populate: { path: 'department', select: 'name' } });
+
+  let total = 0;
+  let present = 0;
+  const byDept: Record<string, { name: string; total: number; present: number }> = {};
+
+  records.forEach((record: any) => {
+    const deptId = record.course?.department?._id?.toString() ?? 'unknown';
+    const deptName = record.course?.department?.name ?? 'Unknown';
+    if (!byDept[deptId]) byDept[deptId] = { name: deptName, total: 0, present: 0 };
+
+    record.records.forEach((r: any) => {
+      total += 1;
+      byDept[deptId].total += 1;
+      if (r.status === AttendanceStatus.PRESENT) {
+        present += 1;
+        byDept[deptId].present += 1;
+      }
+    });
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Attendance analytics fetched.',
+    data: { total, present, byDepartment: Object.values(byDept) },
   });
 };
 
@@ -101,9 +135,14 @@ export const getDepartments = async (req: AuthRequest, res: Response): Promise<v
 };
 
 export const updateDepartment = async (req: AuthRequest, res: Response): Promise<void> => {
+  const {
+    name, code, description, head,
+    matricPrefix, matricSeparator, matricYearFormat, matricSequenceDigits,
+  } = req.body;
+
   const department = await Department.findOneAndUpdate(
     { _id: req.params.id, school: req.user?.school },
-    req.body,
+    { name, code, description, head, matricPrefix, matricSeparator, matricYearFormat, matricSequenceDigits },
     { new: true, runValidators: true }
   );
   if (!department) throw new AppError('Department not found.', 404);

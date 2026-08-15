@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Home, Users, GraduationCap, Building2, CreditCard, BarChart3, Settings,
   CheckCircle, ArrowUpCircle, Calendar, Shield, Loader2, ExternalLink, Bell, Hash
@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { useSubscription, getPlanLabel } from '@/hooks/useSubscription';
 import { useAuth } from '@/contexts/AuthContext';
 import { subscriptionService } from '@/services/subscription.service';
+import { schoolService } from '@/services/school.service';
 import { toast } from 'sonner';
 
 const navItems = [
@@ -45,14 +46,21 @@ export default function SubscriptionPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('yearly');
+  const [studentCount, setStudentCount] = useState(0);
+  const [lecturerCount, setLecturerCount] = useState(0);
 
-  const studentCount = 1150;
-  const lecturerCount = 37;
-  const storageUsed = 12.5;
+  useEffect(() => {
+    schoolService.getStats()
+      .then(res => {
+        const data = res.data?.data ?? {};
+        setStudentCount(data.totalStudents ?? 0);
+        setLecturerCount(data.totalLecturers ?? 0);
+      })
+      .catch(() => {});
+  }, []);
 
-  const studentPct = limits.maxStudents === Infinity ? 5 : Math.round((studentCount / limits.maxStudents) * 100);
-  const lecturerPct = limits.maxLecturers === Infinity ? 5 : Math.round((lecturerCount / limits.maxLecturers) * 100);
-  const storagePct = limits.storageGB === Infinity ? 5 : Math.round((storageUsed / limits.storageGB) * 100);
+  const studentPct = limits.maxStudents === Infinity ? 0 : Math.round((studentCount / limits.maxStudents) * 100);
+  const lecturerPct = limits.maxLecturers === Infinity ? 0 : Math.round((lecturerCount / limits.maxLecturers) * 100);
 
   const handleSubscribe = async (planKey: string) => {
     if (!user?.institutionId) {
@@ -96,7 +104,6 @@ export default function SubscriptionPage() {
           <p className="text-muted-foreground">Manage your institution's subscription plan</p>
         </div>
 
-        {/* Current Plan */}
         <Card className="border-primary/30">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -117,7 +124,7 @@ export default function SubscriptionPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-lg bg-muted/50">
                 <p className="text-sm text-muted-foreground">Students Used</p>
                 <p className="text-2xl font-bold">{studentCount.toLocaleString()} / {limits.maxStudents === Infinity ? '∞' : limits.maxStudents.toLocaleString()}</p>
@@ -128,16 +135,10 @@ export default function SubscriptionPage() {
                 <p className="text-2xl font-bold">{lecturerCount} / {limits.maxLecturers === Infinity ? '∞' : limits.maxLecturers}</p>
                 <Progress value={lecturerPct} className="mt-2" />
               </div>
-              <div className="p-4 rounded-lg bg-muted/50">
-                <p className="text-sm text-muted-foreground">Storage Used</p>
-                <p className="text-2xl font-bold">{storageUsed} / {limits.storageGB === Infinity ? '∞' : limits.storageGB} GB</p>
-                <Progress value={storagePct} className="mt-2" />
-              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Billing Period Toggle */}
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-semibold">Available Plans</h2>
           <div className="flex items-center gap-2 ml-auto">
@@ -148,7 +149,6 @@ export default function SubscriptionPage() {
           </div>
         </div>
 
-        {/* Plans */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {allPlans.map((p) => {
             const isCurrent = p.key === plan;
@@ -191,7 +191,6 @@ export default function SubscriptionPage() {
           })}
         </div>
 
-        {/* Billing History - Managed through Stripe */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Calendar className="h-5 w-5" />Billing History</CardTitle>

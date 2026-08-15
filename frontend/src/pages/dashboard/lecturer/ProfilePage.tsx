@@ -38,13 +38,18 @@ export default function LecturerProfilePage() {
   async function fetchProfile() {
     try {
       const res = await authService.getMe();
-      const data = res.data?.data ?? res.data;
-      setProfile(data);
+      const payload = res.data?.data ?? res.data ?? {};
+      // getMe() returns { user: {...}, profile: {...lecturer fields} } —
+      // flatten the two into one object so the rest of this component's
+      // field access (profile?.firstName, profile?.staffId, etc.) actually
+      // finds real data instead of always reading undefined.
+      const merged = { ...(payload.user ?? {}), ...(payload.profile ?? {}) };
+      setProfile(merged);
       setForm({
-        first_name: data.firstName ?? '',
-        last_name: data.lastName ?? '',
-        phone: data.phone ?? '',
-        bio: data.bio ?? '',
+        first_name: merged.firstName ?? '',
+        last_name: merged.lastName ?? '',
+        phone: merged.phone ?? '',
+        bio: merged.bio ?? '',
       });
     } catch (err: any) {
       toast.error(err.message || 'Failed to load profile');
@@ -85,7 +90,7 @@ export default function LecturerProfilePage() {
 
   const initials = profile ? `${(profile.firstName ?? '')[0] ?? ''}${(profile.lastName ?? '')[0] ?? ''}` : '';
   const dept = profile?.department?.name ?? profile?.department ?? '';
-  const staffId = profile?.staffId ?? profile?.lecturer?.staffId ?? '';
+  const staffId = profile?.staffId ?? '';
 
   if (loading) return (
     <DashboardLayout navItems={navItems} roleLabel="Lecturer Portal" accentColor="hsl(142, 70%, 45%)">
@@ -133,7 +138,6 @@ export default function LecturerProfilePage() {
                   <div className="space-y-2"><Label>Email</Label><Input value={profile?.email || ''} disabled /></div>
                   <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} /></div>
                 </div>
-                <div className="space-y-2"><Label>Bio</Label><Textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} /></div>
                 <Button onClick={handleSave} disabled={saving}><Save className="h-4 w-4 mr-2" />{saving ? 'Saving...' : 'Save Changes'}</Button>
               </CardContent>
             </Card>

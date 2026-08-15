@@ -37,14 +37,12 @@ export default function AttendanceAnalyticsPage() {
   async function fetchStats() {
     setLoading(true);
     try {
-      const res = await schoolService.getStats();
-      const stats = res.data?.data ?? {};
-      // Backend may expose attendance summary; fall back to zeros if not available.
-      const att = stats.attendance ?? {};
-      setTotalAttendance(att.total ?? 0);
-      setTotalPresent(att.present ?? 0);
+      const res = await schoolService.getAttendanceAnalytics();
+      const data = res.data?.data ?? {};
+      setTotalAttendance(data.total ?? 0);
+      setTotalPresent(data.present ?? 0);
       setDeptStats(
-        (att.byDepartment ?? []).map((d: any) => ({
+        (data.byDepartment ?? []).map((d: any) => ({
           name: d.name,
           total: d.total ?? 0,
           present: d.present ?? 0,
