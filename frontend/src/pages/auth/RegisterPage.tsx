@@ -19,7 +19,6 @@ import { schoolService } from '@/services/school.service';
 // ── Validation ────────────────────────────────────────────────────────────────
 const NAME_RE = /^[A-Za-z][A-Za-z'’\- ]*$/;
 const PHONE_RE = /^\+?[0-9][0-9\s\-()]{6,19}$/;
-const MATRIC_RE = /^[A-Za-z0-9/\-]{4,20}$/;
 
 const makeRegisterSchema = (role: 'student' | 'lecturer') =>
   z.object({
@@ -46,7 +45,6 @@ const makeRegisterSchema = (role: 'student' | 'lecturer') =>
       .regex(PHONE_RE, 'Enter a valid phone number, e.g. +2348012345678'),
     // Student-only
     level: z.string().optional(),
-    matricNumber: z.string().trim().optional(),
     // Lecturer-only
     title: z.string().optional(),
     qualification: z.string().trim().optional(),
@@ -58,13 +56,6 @@ const makeRegisterSchema = (role: 'student' | 'lecturer') =>
     if (role === 'student') {
       if (!data.level) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Please select your level', path: ['level'] });
-      }
-      if (data.matricNumber && !MATRIC_RE.test(data.matricNumber)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Matric number must be 4-20 characters (letters, numbers, / or -)',
-          path: ['matricNumber'],
-        });
       }
     }
     if (role === 'lecturer') {
@@ -210,7 +201,6 @@ export default function RegisterPage() {
       schoolCode: selectedSchool.code,
       departmentId: selectedDepartmentId,
       level: role === 'student' ? Number(data.level) : undefined,
-      matricNumber: role === 'student' ? data.matricNumber : undefined,
       title: role === 'lecturer' ? data.title : undefined,
       qualification: role === 'lecturer' ? data.qualification : undefined,
       specialisation: role === 'lecturer' ? data.specialisation : undefined,
@@ -234,8 +224,6 @@ export default function RegisterPage() {
   const selectedDepartment = departments.find(d => d.id === selectedDepartmentId);
 
   // ── Live password requirements ────────────────────────────────────────────
-  // Same rules already enforced by the zod schema above — this just makes
-  // them visible as the user types, instead of only surfacing on blur.
   const passwordValue = watch('password') || '';
   const passwordRequirements = [
     { label: 'At least 8 characters', met: passwordValue.length >= 8 },
@@ -507,22 +495,18 @@ export default function RegisterPage() {
                   </div>
 
                   {role === 'student' ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Level</Label>
-                        <Select value={watch('level')} onValueChange={v => setValue('level', v, { shouldValidate: true })}>
-                          <SelectTrigger className={errors.level ? 'border-destructive' : ''}><SelectValue placeholder="Select level" /></SelectTrigger>
-                          <SelectContent>
-                            {LEVELS.map(l => <SelectItem key={l} value={String(l)}>{l} Level</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        {errors.level && <p className="text-xs text-destructive">{errors.level.message}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="matricNumber">Matric Number (Optional)</Label>
-                        <Input id="matricNumber" placeholder="Auto-generated if blank" {...register('matricNumber')} className={errors.matricNumber ? 'border-destructive' : ''} />
-                        {errors.matricNumber && <p className="text-xs text-destructive">{errors.matricNumber.message}</p>}
-                      </div>
+                    <div className="space-y-2">
+                      <Label>Level</Label>
+                      <Select value={watch('level')} onValueChange={v => setValue('level', v, { shouldValidate: true })}>
+                        <SelectTrigger className={errors.level ? 'border-destructive' : ''}><SelectValue placeholder="Select level" /></SelectTrigger>
+                        <SelectContent>
+                          {LEVELS.map(l => <SelectItem key={l} value={String(l)}>{l} Level</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      {errors.level && <p className="text-xs text-destructive">{errors.level.message}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        Your matric number will be assigned automatically based on your department.
+                      </p>
                     </div>
                   ) : (
                     <>

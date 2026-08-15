@@ -132,6 +132,12 @@ export interface IDepartment extends Document {
   head?: Types.ObjectId;
   description?: string;
   isActive: boolean;
+  matricPrefix?: string;
+  matricSeparator: string;
+  matricYearFormat: 'full' | 'short';
+  matricSequenceDigits: number;
+  matricSequence: number;
+  matricLastSession?: string;
   createdAt: Date;
 }
 
