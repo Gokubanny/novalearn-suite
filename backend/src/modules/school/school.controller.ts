@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { Types } from 'mongoose';
 import School from './school.model';
 import Department from '../department/department.model';
 import Student from '../student/student.model';
@@ -11,6 +12,7 @@ import { AuthRequest, ApprovalStatus, AttendanceStatus, NotificationType } from 
 import { AppError } from '../../middleware/error.middleware';
 import { sendEmail, emailTemplates } from '../../utils/email';
 import { uploadImage } from '../../config/cloudinary';
+import { getCurrentSession } from '../../utils/helpers';
 import fs from 'fs';
 
 // ── GET SCHOOL DASHBOARD STATS ──────────────────────────────────────────────
@@ -72,6 +74,42 @@ export const getAttendanceAnalytics = async (req: AuthRequest, res: Response): P
     success: true,
     message: 'Attendance analytics fetched.',
     data: { total, present, byDepartment: Object.values(byDept) },
+  });
+};
+
+// ── GET WEEKLY ATTENDANCE TREND (current session, institution-wide) ────────
+export const getAttendanceTrend = async (req: AuthRequest, res: Response): Promise<void> => {
+  const schoolId = req.user?.school as string;
+  const currentSession = getCurrentSession();
+
+  const weeklyTrend = await Attendance.aggregate([
+    { $match: { school: new Types.ObjectId(schoolId), session: currentSession } },
+    { $unwind: '$records' },
+    {
+      $group: {
+        _id: {
+          $dateTrunc: { date: '$date', unit: 'week', startOfWeek: 'monday', timezone: 'Africa/Lagos' },
+        },
+        total: { $sum: 1 },
+        present: {
+          $sum: { $cond: [{ $eq: ['$records.status', AttendanceStatus.PRESENT] }, 1, 0] },
+        },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  const trend = weeklyTrend.map((w) => ({
+    weekStart: w._id,
+    total: w.total,
+    present: w.present,
+    rate: w.total ? Math.round((w.present / w.total) * 100) : 0,
+  }));
+
+  res.status(200).json({
+    success: true,
+    message: 'Attendance trend fetched.',
+    data: { session: currentSession, trend },
   });
 };
 

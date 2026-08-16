@@ -3,6 +3,8 @@ import {
   Home, Users, GraduationCap, Building2, CreditCard, BarChart3, Settings,
   TrendingUp, TrendingDown, Calendar, Loader2, Bell, Hash
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +30,7 @@ const navItems = [
 
 interface DeptStats { id: string; name: string; total: number; present: number; rate: number; }
 interface CourseStats { name: string; code: string; total: number; present: number; rate: number; }
+interface TrendPoint { weekStart: string; total: number; present: number; rate: number; }
 
 function DepartmentDetailDialog({
   departmentId,
@@ -134,6 +137,7 @@ export default function AttendanceAnalyticsPage() {
   const [totalAttendance, setTotalAttendance] = useState(0);
   const [totalPresent, setTotalPresent] = useState(0);
   const [deptStats, setDeptStats] = useState<DeptStats[]>([]);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
 
   useEffect(() => { if (user) fetchStats(); }, [user]);
@@ -141,8 +145,12 @@ export default function AttendanceAnalyticsPage() {
   async function fetchStats() {
     setLoading(true);
     try {
-      const res = await schoolService.getAttendanceAnalytics();
-      const data = res.data?.data ?? {};
+      const [analyticsRes, trendRes] = await Promise.all([
+        schoolService.getAttendanceAnalytics(),
+        schoolService.getAttendanceTrend(),
+      ]);
+
+      const data = analyticsRes.data?.data ?? {};
       setTotalAttendance(data.total ?? 0);
       setTotalPresent(data.present ?? 0);
       setDeptStats(
@@ -154,15 +162,20 @@ export default function AttendanceAnalyticsPage() {
           rate: d.total ? Math.round((d.present / d.total) * 100) : 0,
         }))
       );
+
+      const trendData = trendRes.data?.data ?? {};
+      setTrend(trendData.trend ?? []);
     } catch {
       setTotalAttendance(0);
       setTotalPresent(0);
       setDeptStats([]);
+      setTrend([]);
     }
     setLoading(false);
   }
 
   const overallRate = totalAttendance > 0 ? Math.round((totalPresent / totalAttendance) * 100) : 0;
+  const chartData = trend.map((t) => ({ ...t, label: format(new Date(t.weekStart), 'MMM d') }));
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Admin Portal" accentColor="hsl(262, 83%, 58%)">
@@ -199,6 +212,29 @@ export default function AttendanceAnalyticsPage() {
                 <CardContent><div className="text-2xl font-bold">{totalPresent}</div></CardContent>
               </Card>
             </div>
+
+            {chartData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Attendance Trend</CardTitle>
+                  <CardDescription>Weekly attendance rate this session</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="label" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis domain={[0, 100]} fontSize={12} tickLine={false} axisLine={false} unit="%" />
+                      <Tooltip
+                        formatter={(value: number) => [`${value}%`, 'Attendance Rate']}
+                        labelFormatter={(label) => `Week of ${label}`}
+                      />
+                      <Line type="monotone" dataKey="rate" stroke="hsl(262, 83%, 58%)" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {deptStats.length > 0 && (
               <Card>

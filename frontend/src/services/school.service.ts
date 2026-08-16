@@ -11,6 +11,7 @@ export const schoolService = {
   // ── Authenticated ──────────────────────────────────────────────────────────
   getStats: () => api.get('/api/school/stats'),
   getAttendanceAnalytics: () => api.get('/api/school/attendance-analytics'),
+  getAttendanceTrend: () => api.get('/api/school/attendance-analytics/trend'),
   getDepartmentAttendanceAnalytics: (departmentId: string) =>
     api.get(`/api/school/attendance-analytics/departments/${departmentId}`),
   getProfile: () => api.get('/api/school/profile'),
