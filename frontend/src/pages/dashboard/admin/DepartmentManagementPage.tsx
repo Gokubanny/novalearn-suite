@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -44,6 +47,7 @@ interface Department {
   name: string;
   code: string;
   description: string;
+  headId: string | null;
   headName: string | null;
   isActive: boolean;
 }
@@ -52,15 +56,23 @@ interface DeptForm {
   name: string;
   code: string;
   description: string;
+  headId: string | null;
 }
 
-const EMPTY_FORM: DeptForm = { name: '', code: '', description: '' };
+interface LecturerOption {
+  userId: string;
+  name: string;
+  departmentId: string | null;
+}
+
+const EMPTY_FORM: DeptForm = { name: '', code: '', description: '', headId: null };
 
 export default function DepartmentManagementPage() {
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [lecturers, setLecturers] = useState<LecturerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -81,6 +93,7 @@ export default function DepartmentManagementPage() {
   useEffect(() => {
     if (!user) return;
     fetchDepartments();
+    fetchLecturers();
   }, [user]);
 
   const fetchDepartments = async () => {
@@ -94,6 +107,7 @@ export default function DepartmentManagementPage() {
           name: d.name,
           code: d.code,
           description: d.description ?? '',
+          headId: d.head?._id ?? d.head ?? null,
           headName: d.head
             ? `${d.head.firstName ?? ''} ${d.head.lastName ?? ''}`.trim() || null
             : null,
@@ -108,6 +122,27 @@ export default function DepartmentManagementPage() {
       });
     }
     setLoading(false);
+  };
+
+  // Lecturers list is used only to populate the HOD dropdown — non-critical,
+  // so a failure here shouldn't block the page or show an error toast.
+  const fetchLecturers = async () => {
+    try {
+      const res = await schoolService.getAllLecturers();
+      const list: any[] = res.data?.data ?? [];
+      setLecturers(
+        list
+          .filter((l) => l.approvalStatus === 'approved')
+          .map((l) => ({
+            userId: l.user?._id,
+            name: `${l.user?.firstName ?? ''} ${l.user?.lastName ?? ''}`.trim(),
+            departmentId: l.department?._id ?? l.department ?? null,
+          }))
+          .filter((l) => l.userId && l.name)
+      );
+    } catch {
+      // Silent — the Edit dialog just shows an empty HOD list if this fails.
+    }
   };
 
   // ── Create ────────────────────────────────────────────────────────────────
@@ -144,7 +179,12 @@ export default function DepartmentManagementPage() {
   // ── Edit ──────────────────────────────────────────────────────────────────
   const openEdit = (dept: Department) => {
     setEditTarget(dept);
-    setEditForm({ name: dept.name, code: dept.code, description: dept.description });
+    setEditForm({
+      name: dept.name,
+      code: dept.code,
+      description: dept.description,
+      headId: dept.headId,
+    });
   };
 
   const handleEdit = async () => {
@@ -163,6 +203,7 @@ export default function DepartmentManagementPage() {
         name: editForm.name.trim(),
         code: editForm.code.trim().toUpperCase(),
         description: editForm.description.trim(),
+        head: editForm.headId,
       });
       toast({ title: 'Department updated!' });
       setEditTarget(null);
@@ -182,8 +223,6 @@ export default function DepartmentManagementPage() {
     if (!deactivateTarget) return;
     setDeactivating(true);
     try {
-      // Sets isActive: false on the backend (soft delete) — routed through
-      // schoolService now instead of a raw api.delete() call.
       await schoolService.deleteDepartment(deactivateTarget.id);
       toast({ title: `"${deactivateTarget.name}" has been deactivated.` });
       setDeactivateTarget(null);
@@ -205,6 +244,10 @@ export default function DepartmentManagementPage() {
   );
 
   const activeDepts = departments.filter((d) => d.isActive);
+
+  const eligibleLecturers = editTarget
+    ? lecturers.filter((l) => l.departmentId === editTarget.id)
+    : [];
 
   return (
     <DashboardLayout navItems={navItems} roleLabel="Admin Portal" accentColor="hsl(262, 83%, 58%)">
@@ -461,6 +504,32 @@ export default function DepartmentManagementPage() {
                 }
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Head of Department</Label>
+              <Select
+                value={editForm.headId ?? 'none'}
+                onValueChange={(v) =>
+                  setEditForm((f) => ({ ...f, headId: v === 'none' ? null : v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No HOD assigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No HOD assigned</SelectItem>
+                  {eligibleLecturers.map((l) => (
+                    <SelectItem key={l.userId} value={l.userId}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {eligibleLecturers.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No approved lecturers in this department yet — add one before assigning a HOD.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
