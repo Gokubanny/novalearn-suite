@@ -42,7 +42,7 @@ export const getSchoolStats = async (req: AuthRequest, res: Response): Promise<v
   });
 };
 
-// ── GET ATTENDANCE ANALYTICS ──────────────────────────────────────────────────
+// ── GET ATTENDANCE ANALYTICS (institution-wide, by department) ─────────────
 export const getAttendanceAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
   const schoolId = req.user?.school;
 
@@ -51,12 +51,12 @@ export const getAttendanceAnalytics = async (req: AuthRequest, res: Response): P
 
   let total = 0;
   let present = 0;
-  const byDept: Record<string, { name: string; total: number; present: number }> = {};
+  const byDept: Record<string, { id: string; name: string; total: number; present: number }> = {};
 
   records.forEach((record: any) => {
     const deptId = record.course?.department?._id?.toString() ?? 'unknown';
     const deptName = record.course?.department?.name ?? 'Unknown';
-    if (!byDept[deptId]) byDept[deptId] = { name: deptName, total: 0, present: 0 };
+    if (!byDept[deptId]) byDept[deptId] = { id: deptId, name: deptName, total: 0, present: 0 };
 
     record.records.forEach((r: any) => {
       total += 1;
@@ -72,6 +72,60 @@ export const getAttendanceAnalytics = async (req: AuthRequest, res: Response): P
     success: true,
     message: 'Attendance analytics fetched.',
     data: { total, present, byDepartment: Object.values(byDept) },
+  });
+};
+
+// ── GET ATTENDANCE ANALYTICS FOR ONE DEPARTMENT (by course) ─────────────────
+export const getDepartmentAttendanceAnalytics = async (req: AuthRequest, res: Response): Promise<void> => {
+  const schoolId = req.user?.school;
+  const departmentId = req.params.id;
+
+  const department = await Department.findOne({ _id: departmentId, school: schoolId }).select('name code');
+  if (!department) throw new AppError('Department not found.', 404);
+
+  const courses = await Course.find({ department: departmentId, school: schoolId }).select('title code');
+  const courseIds = courses.map((c) => c._id);
+
+  const records = await Attendance.find({ school: schoolId, course: { $in: courseIds } })
+    .select('course records');
+
+  const byCourse: Record<string, { name: string; code: string; total: number; present: number }> = {};
+  courses.forEach((c) => {
+    byCourse[c._id.toString()] = { name: c.title, code: c.code, total: 0, present: 0 };
+  });
+
+  let total = 0;
+  let present = 0;
+
+  records.forEach((record: any) => {
+    const courseId = record.course.toString();
+    if (!byCourse[courseId]) return;
+
+    record.records.forEach((r: any) => {
+      total += 1;
+      byCourse[courseId].total += 1;
+      if (r.status === AttendanceStatus.PRESENT) {
+        present += 1;
+        byCourse[courseId].present += 1;
+      }
+    });
+  });
+
+  const courseStats = Object.values(byCourse).map((c) => ({
+    ...c,
+    rate: c.total ? Math.round((c.present / c.total) * 100) : 0,
+  }));
+
+  res.status(200).json({
+    success: true,
+    message: 'Department attendance analytics fetched.',
+    data: {
+      department: { id: department._id, name: department.name, code: department.code },
+      total,
+      present,
+      rate: total ? Math.round((present / total) * 100) : 0,
+      byCourse: courseStats,
+    },
   });
 };
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
-  getSchoolStats, getAttendanceAnalytics, getSchoolProfile, updateSchoolProfile, uploadSchoolLogo,
+  getSchoolStats, getAttendanceAnalytics, getDepartmentAttendanceAnalytics,
+  getSchoolProfile, updateSchoolProfile, uploadSchoolLogo,
   createDepartment, getDepartments, updateDepartment, deleteDepartment,
   getPendingStudents, getAllStudents, approveStudent, rejectStudent, suspendStudent,
   getPendingLecturers, getAllLecturers, approveLecturer, rejectLecturer,
@@ -28,6 +29,7 @@ router.use(protect, authorize(UserRole.SCHOOL_ADMIN));
 // Dashboard
 router.get('/stats', getSchoolStats);
 router.get('/attendance-analytics', getAttendanceAnalytics);
+router.get('/attendance-analytics/departments/:id', getDepartmentAttendanceAnalytics);
 
 // School profile
 router.get('/profile', getSchoolProfile);

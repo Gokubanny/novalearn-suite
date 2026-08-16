@@ -7,6 +7,9 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog';
 import { schoolService } from '@/services/school.service';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -23,7 +26,107 @@ const navItems = [
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ];
 
-interface DeptStats { name: string; total: number; present: number; rate: number; }
+interface DeptStats { id: string; name: string; total: number; present: number; rate: number; }
+interface CourseStats { name: string; code: string; total: number; present: number; rate: number; }
+
+function DepartmentDetailDialog({
+  departmentId,
+  onOpenChange,
+}: {
+  departmentId: string | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [deptName, setDeptName] = useState('');
+  const [overallRate, setOverallRate] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [present, setPresent] = useState(0);
+  const [courses, setCourses] = useState<CourseStats[]>([]);
+
+  useEffect(() => {
+    if (!departmentId) return;
+    let cancelled = false;
+
+    async function fetchDetail() {
+      try {
+        const res = await schoolService.getDepartmentAttendanceAnalytics(departmentId);
+        if (cancelled) return;
+        const data = res.data?.data ?? {};
+        setDeptName(data.department?.name ?? '');
+        setTotal(data.total ?? 0);
+        setPresent(data.present ?? 0);
+        setOverallRate(data.rate ?? 0);
+        setCourses(
+          (data.byCourse ?? []).map((c: any) => ({
+            name: c.name, code: c.code, total: c.total ?? 0, present: c.present ?? 0, rate: c.rate ?? 0,
+          }))
+        );
+      } catch {
+        if (!cancelled) setError(true);
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    fetchDetail();
+    return () => { cancelled = true; };
+  }, [departmentId]);
+
+  return (
+    <Dialog open={!!departmentId} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{deptName || 'Department Attendance'}</DialogTitle>
+          <DialogDescription>Course-by-course attendance breakdown</DialogDescription>
+        </DialogHeader>
+
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : error ? (
+          <p className="text-sm text-muted-foreground py-4">Couldn't load this department's attendance data.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="text-xl font-bold">{overallRate}%</div>
+                <div className="text-xs text-muted-foreground">Overall Rate</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold">{total}</div>
+                <div className="text-xs text-muted-foreground">Total Records</div>
+              </div>
+              <div>
+                <div className="text-xl font-bold">{present}</div>
+                <div className="text-xs text-muted-foreground">Present</div>
+              </div>
+            </div>
+
+            {courses.length > 0 ? (
+              <div className="space-y-3">
+                {courses.map((c) => (
+                  <div key={c.code} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{c.name}</span>
+                        <Badge variant="outline" className="text-xs">{c.code}</Badge>
+                      </div>
+                      <span className="font-bold text-sm">{c.rate}%</span>
+                    </div>
+                    <Progress value={c.rate} className={c.rate < 80 ? '[&>div]:bg-orange-500' : ''} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                No attendance records for this department yet.
+              </p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function AttendanceAnalyticsPage() {
   const { user } = useAuth();
@@ -31,6 +134,7 @@ export default function AttendanceAnalyticsPage() {
   const [totalAttendance, setTotalAttendance] = useState(0);
   const [totalPresent, setTotalPresent] = useState(0);
   const [deptStats, setDeptStats] = useState<DeptStats[]>([]);
+  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
 
   useEffect(() => { if (user) fetchStats(); }, [user]);
 
@@ -43,6 +147,7 @@ export default function AttendanceAnalyticsPage() {
       setTotalPresent(data.present ?? 0);
       setDeptStats(
         (data.byDepartment ?? []).map((d: any) => ({
+          id: d.id,
           name: d.name,
           total: d.total ?? 0,
           present: d.present ?? 0,
@@ -99,10 +204,17 @@ export default function AttendanceAnalyticsPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Attendance by Department</CardTitle>
+                  <CardDescription>Click a department to see the course-by-course breakdown</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {deptStats.map(dept => (
-                    <div key={dept.name} className="space-y-2">
+                  {deptStats.map((dept) => (
+                    <button
+                      key={dept.id}
+                      type="button"
+                      onClick={() => dept.id !== 'unknown' && setSelectedDeptId(dept.id)}
+                      disabled={dept.id === 'unknown'}
+                      className="w-full text-left space-y-2 rounded-md p-2 -mx-2 hover:bg-muted/50 transition-colors disabled:hover:bg-transparent disabled:cursor-default"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">{dept.name}</span>
@@ -111,13 +223,19 @@ export default function AttendanceAnalyticsPage() {
                         <span className="font-bold text-sm">{dept.rate}%</span>
                       </div>
                       <Progress value={dept.rate} className={dept.rate < 80 ? '[&>div]:bg-orange-500' : ''} />
-                    </div>
+                    </button>
                   ))}
                 </CardContent>
               </Card>
             )}
           </>
         )}
+
+        <DepartmentDetailDialog
+          key={selectedDeptId ?? 'none'}
+          departmentId={selectedDeptId}
+          onOpenChange={(open) => !open && setSelectedDeptId(null)}
+        />
       </div>
     </DashboardLayout>
   );
