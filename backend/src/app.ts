@@ -10,6 +10,7 @@ import fs from 'fs';
 import authRoutes from './modules/auth/auth.routes';
 import superAdminRoutes from './modules/superadmin/superadmin.routes';
 import schoolRoutes from './modules/school/school.routes';
+import lecturerRoutes from './modules/lecturer/lecturer.routes';
 import courseRoutes from './modules/course/course.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import resultRoutes from './modules/results/result.routes';
@@ -97,6 +98,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/school', schoolRoutes);
+app.use('/api/lecturer', lecturerRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/results', resultRoutes);
@@ -119,6 +121,7 @@ app.get('/api', (_req, res) => {
       auth: '/api/auth',
       superAdmin: '/api/super-admin',
       school: '/api/school',
+      lecturer: '/api/lecturer',
       courses: '/api/courses',
       attendance: '/api/attendance',
       results: '/api/results',
