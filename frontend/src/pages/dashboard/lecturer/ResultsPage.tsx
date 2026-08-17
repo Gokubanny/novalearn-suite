@@ -120,6 +120,7 @@ export default function LecturerResultsPage() {
       // Map studentId → existing result
       const resultMap = new Map<string, any>();
       resultList.forEach(r => {
+        if (!r.student) return; // orphaned result — referenced student no longer exists
         const sid = typeof r.student === 'object'
           ? String(r.student._id ?? r.student.id)
           : String(r.student);
