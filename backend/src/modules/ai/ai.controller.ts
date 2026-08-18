@@ -15,7 +15,7 @@ const grok = new OpenAI({
   baseURL: process.env.GROK_BASE_URL || 'https://api.x.ai/v1',
 });
 
-const MODEL = process.env.GROK_MODEL || 'llama-3.3-70b-versatile';
+const MODEL = process.env.GROK_MODEL || 'openai/gpt-oss-120b';
 
 // ── Helper: Get Student Context ──────────────────────────────────────────────
 async function getStudentContext(userId: string) {
