@@ -935,13 +935,13 @@ function PracticeQuestionsTab() {
   const [count, setCount] = useState('5');
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [selected, setSelected] = useState<Record<number, string>>({});
 
   const generate = async () => {
     if (!topic.trim()) return;
     setIsLoading(true);
     setQuestions([]);
-    setRevealed({});
+    setSelected({});
     try {
       const res = await aiService.generateQuestions(topic.trim(), difficulty, parseInt(count));
       setQuestions(res.data?.data?.questions || []);
@@ -966,7 +966,62 @@ function PracticeQuestionsTab() {
         </CardContent>
       </Card>
       {isLoading && (<div className="flex justify-center py-12"><div className="text-center space-y-3"><Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" /><p className="text-sm text-muted-foreground">Generating questions on "{topic}"…</p></div></div>)}
-      {questions.length > 0 && (<div className="space-y-4">{questions.map((q, i) => (<Card key={i}><CardContent className="pt-4 space-y-3"><div className="flex items-start gap-3"><Badge className="mt-0.5 flex-shrink-0">{i + 1}</Badge><p className="font-medium text-sm">{q.question}</p></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-8">{Object.entries(q.options || {}).map(([letter, text]) => (<div key={letter} className={`text-sm p-2 rounded-lg border transition-colors ${revealed[i] && letter === q.answer ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium' : 'border-border bg-muted/30'}`}><span className="font-medium mr-2">{letter}.</span>{text}</div>))}</div>{!revealed[i] ? (<Button variant="outline" size="sm" className="ml-8" onClick={() => setRevealed(r => ({ ...r, [i]: true }))}>Reveal Answer</Button>) : (<div className="ml-8 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3"><p className="font-medium text-foreground mb-1">✅ Answer: {q.answer}</p><p>{q.explanation}</p></div>)}</CardContent></Card>))}</div>)}
+      {questions.length > 0 && (
+        <div className="space-y-4">
+          {questions.map((q, i) => {
+            const pickedLetter = selected[i];
+            const answered = pickedLetter !== undefined;
+            const isCorrect = answered && pickedLetter === q.answer;
+            return (
+              <Card key={i}>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Badge className="mt-0.5 flex-shrink-0">{i + 1}</Badge>
+                    <p className="font-medium text-sm">{q.question}</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-8">
+                    {Object.entries(q.options || {}).map(([letter, text]) => {
+                      const isPicked = pickedLetter === letter;
+                      const isRightAnswer = letter === q.answer;
+                      let stateClass = 'border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/50 cursor-pointer';
+                      if (answered) {
+                        if (isRightAnswer) {
+                          stateClass = 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium';
+                        } else if (isPicked) {
+                          stateClass = 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 font-medium';
+                        } else {
+                          stateClass = 'border-border bg-muted/20 opacity-60';
+                        }
+                      }
+                      return (
+                        <button
+                          key={letter}
+                          type="button"
+                          disabled={answered}
+                          onClick={() => !answered && setSelected(s => ({ ...s, [i]: letter }))}
+                          className={`text-left text-sm p-2 rounded-lg border transition-colors w-full disabled:cursor-default ${stateClass}`}
+                        >
+                          <span className="font-medium mr-2">{letter}.</span>{text}
+                          {answered && isRightAnswer && <span className="ml-1">✓</span>}
+                          {answered && isPicked && !isRightAnswer && <span className="ml-1">✗</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {answered && (
+                    <div className={`ml-8 text-sm rounded-lg p-3 ${isCorrect ? 'bg-green-50 dark:bg-green-900/20' : 'bg-muted/50'}`}>
+                      <p className="font-medium text-foreground mb-1">
+                        {isCorrect ? '✅ Correct!' : `❌ Not quite — the correct answer is ${q.answer}.`}
+                      </p>
+                      <p className="text-muted-foreground">{q.explanation}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
