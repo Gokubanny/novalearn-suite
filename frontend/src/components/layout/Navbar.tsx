@@ -1,7 +1,24 @@
 import { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Sun, Moon, Eye } from "lucide-react";
+import { Menu, X, Sun, Moon, Eye, LayoutDashboard, LogOut, ChevronDown } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/hooks/useTheme";
+import { AvatarImage } from "@/components/ui/avatar-image";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+const dashboardPath: Record<string, string> = {
+  student: "/dashboard/student",
+  lecturer: "/dashboard/lecturer",
+  admin: "/dashboard/admin",
+  super_admin: "/dashboard/super-admin",
+};
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -23,7 +40,15 @@ const navLinks = [
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const dashHref = user ? dashboardPath[user.role] ?? "/dashboard/student" : "/login";
+  const initials = `${user?.firstName?.[0] ?? ""}${user?.lastName?.[0] ?? ""}`.toUpperCase() || "U";
+  const handleLogout = async () => {
+    await logout();
+    navigate("/");
+  };
   const [highContrast, setHighContrast] = useState(false);
   const location = useLocation();
 
@@ -36,8 +61,6 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
-    const isDarkMode = document.documentElement.classList.contains("dark");
-    setIsDark(isDarkMode);
     const isHighContrast = localStorage.getItem("highContrast") === "true";
     setHighContrast(isHighContrast);
     if (isHighContrast) {
@@ -45,10 +68,6 @@ export function Navbar() {
     }
   }, []);
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle("dark");
-  };
 
   const toggleHighContrast = () => {
     const newValue = !highContrast;
@@ -182,14 +201,41 @@ export function Navbar() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Login Button */}
-            <Button asChild variant="outline">
-              <Link to="/login">Login</Link>
-            </Button>
-
-            <Button asChild className="btn-glow">
-              <Link to="/register">Get Started</Link>
-            </Button>
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2 rounded-full pl-1 pr-3" aria-label="Account menu">
+                    <AvatarImage src={user.avatar ?? ""} alt={user.firstName} fallbackInitials={initials} size="sm" />
+                    <span className="text-sm font-medium max-w-[120px] truncate">{user.firstName}</span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <div className="px-2 py-1.5">
+                    <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate(dashHref)}>
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button asChild variant="outline">
+                  <Link to="/login">Login</Link>
+                </Button>
+                <Button asChild className="btn-glow">
+                  <Link to="/register">Get Started</Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -267,6 +313,24 @@ export function Navbar() {
                   </Link>
                 </motion.div>
               ))}
+              {user ? (
+                <div className="pt-4 border-t border-border space-y-2">
+                  <div className="flex items-center gap-3 px-4 py-2">
+                    <AvatarImage src={user.avatar ?? ""} alt={user.firstName} fallbackInitials={initials} size="sm" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{user.firstName} {user.lastName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    </div>
+                  </div>
+                  <Link to={dashHref} role="menuitem" className="flex items-center gap-2 px-4 py-3 rounded-lg text-base text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-ring">
+                    <LayoutDashboard className="h-4 w-4" /> Dashboard
+                  </Link>
+                  <button onClick={handleLogout} role="menuitem" className="w-full flex items-center gap-2 px-4 py-3 rounded-lg text-base text-destructive hover:bg-accent transition-colors focus-ring">
+                    <LogOut className="h-4 w-4" /> Log out
+                  </button>
+                </div>
+              ) : (
+                <>
               <div className="pt-4 border-t border-border space-y-2">
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
@@ -295,6 +359,8 @@ export function Navbar() {
                   </Link>
                 </Button>
               </motion.div>
+                </>
+              )}
             </div>
           </motion.div>
         )}
