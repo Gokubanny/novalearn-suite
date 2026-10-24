@@ -10,4 +10,8 @@ export const superAdminService = {
   updateSubscription: (id: string, data: any) =>
     api.patch(`/api/super-admin/schools/${id}/subscription`, data),
   getAllUsers: (params?: any) => api.get('/api/super-admin/users', { params }),
+  toggleUserStatus: (id: string) => api.patch(`/api/super-admin/users/${id}/toggle-status`),
+  impersonateUser: (id: string) => api.post(`/api/super-admin/users/${id}/impersonate`),
+  getUserProfile: (id: string) => api.get(`/api/super-admin/users/${id}/profile`),
+  getAuditLogs: (params?: any) => api.get('/api/super-admin/audit-logs', { params }),
 };
