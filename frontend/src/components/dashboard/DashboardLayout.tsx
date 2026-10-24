@@ -9,8 +9,11 @@ import {
   Bell,
   Menu,
   X,
-  Lock
+  Lock,
+  Sun,
+  Moon
 } from 'lucide-react';
+import { useTheme } from '@/hooks/useTheme';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
@@ -45,6 +48,7 @@ export function DashboardLayout({ children, navItems, roleLabel, accentColor: pr
   const { accentColor: userAccentColor } = useAccentColor();
   const accentColor = userAccentColor || propAccentColor || 'hsl(221, 83%, 53%)';
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const { plan, canAccess } = useSubscription();
   const navigate = useNavigate();
@@ -80,6 +84,9 @@ export function DashboardLayout({ children, navItems, roleLabel, accentColor: pr
             <span className="font-semibold">NexfordEdu</span>
           </Link>
         </div>
+        <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
@@ -201,6 +208,9 @@ export function DashboardLayout({ children, navItems, roleLabel, accentColor: pr
             <h1 className="text-xl font-semibold">Welcome back, {user?.firstName}!</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
