@@ -184,7 +184,11 @@ export const getCourseAttendance = async (req: AuthRequest, res: Response): Prom
 
   const [records, total] = await Promise.all([
     Attendance.find({ course: courseId, school: req.user?.school })
-      .populate('records.student', 'matricNumber user')
+      .populate({
+        path: 'records.student',
+        select: 'matricNumber user',
+        populate: { path: 'user', select: 'firstName lastName' },
+      })
       .sort({ date: -1 })
       .skip(skip)
       .limit(limit),
