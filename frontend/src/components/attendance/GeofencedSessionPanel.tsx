@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { attendanceService, getStudentLocation } from '@/services/attendance.service';
+import { getSocket } from '@/lib/socket';
 
 interface Props {
   courseId: string;
@@ -81,11 +82,12 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
   useEffect(() => {
     if (!session) return;
 
+    const sid = session._id ?? session.id ?? session.sessionId;
+
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
 
     const fetchResults = async () => {
       try {
-        const sid = session._id ?? session.id ?? session.sessionId;
         if (!sid) return;
         const r = await attendanceService.getSessionResults(sid);
         const data = r.data?.data ?? {};
@@ -99,16 +101,29 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
         );
         setTotalEnrolled(data.totalEnrolled ?? list.length);
       } catch {
-        /* ignore poll failures */
+        /* ignore poll/push failures */
       }
     };
 
     fetchResults();
+    // 10s poll stays as a fallback — if the socket is ever disconnected,
+    // results still arrive, just a little slower.
     pollRef.current = window.setInterval(fetchResults, 10_000);
+
+    // Live push: refetch immediately when a student submits, instead of
+    // waiting for the next poll tick. Purely a trigger — the actual data
+    // always comes from the same fetchResults() call above, so there's one
+    // source of truth either way.
+    const socket = getSocket();
+    const onSessionUpdate = (payload: { sessionId?: string }) => {
+      if (!sid || payload?.sessionId === sid) fetchResults();
+    };
+    socket?.on('attendance:session-update', onSessionUpdate);
 
     return () => {
       window.clearInterval(tick);
       if (pollRef.current) window.clearInterval(pollRef.current);
+      socket?.off('attendance:session-update', onSessionUpdate);
     };
   }, [session]);
 

@@ -10,6 +10,7 @@ import { AuthRequest, AttendanceStatus, NotificationType } from '../../types';
 import { AppError } from '../../middleware/error.middleware';
 import { getCurrentSession } from '../../utils/helpers';
 import { callFaceServiceWithRetry } from '../../utils/faceServiceClient';
+import { emitToUser } from '../../realtime/socket';
 
 const FACE_SERVICE_URL = process.env.FACE_RECOGNITION_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
@@ -70,7 +71,10 @@ export const startSession = async (req: AuthRequest, res: Response): Promise<voi
   }));
 
   if (notifications.length > 0) {
-    await Notification.insertMany(notifications);
+    // create() (not insertMany()) — insertMany() skips document middleware,
+    // so the Notification model's post('save') hook (which pushes the
+    // realtime event over the socket) would silently never fire.
+    await Notification.create(notifications);
   }
 
   res.status(201).json({
@@ -176,6 +180,22 @@ const recordAttempt = async (
   }
 };
 
+// ── HELPER: PUSH A LIVE "SOMETHING CHANGED" SIGNAL TO THE SESSION'S LECTURER ──
+// Signal-only, not a data payload: the open panel just refetches its existing
+// getSessionResults() on receipt, so there's one source of truth for the
+// actual numbers either way. Best-effort — must never break the real
+// attendance write if the lookup or the push fails.
+const notifyLecturerOfSessionUpdate = async (sessionId: string): Promise<void> => {
+  try {
+    const session = await AttendanceSession.findById(sessionId).select('lecturer').lean();
+    if (session?.lecturer) {
+      emitToUser(session.lecturer.toString(), 'attendance:session-update', { sessionId });
+    }
+  } catch {
+    /* ignore — realtime is best-effort */
+  }
+};
+
 // ── STUDENT SELFIE SUBMISSION ──────────────────────────────────────────────────
 export const submitSelfie = async (req: AuthRequest, res: Response): Promise<void> => {
   const { sessionId } = req.params;
@@ -223,6 +243,11 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
         ? 'location_invalid'
         : 'face_mismatch';
     await recordAttempt(sessionId, student._id, attemptStatus);
+
+    // Let the lecturer's open panel know something changed — on both a
+    // success and a recorded failure, since "attempted, not present" is
+    // also shown live.
+    await notifyLecturerOfSessionUpdate(sessionId);
 
     // Only bookkeep submittedStudents/presentStudents on genuine success —
     // Python's own has_student_submitted() check reads submittedStudents to
