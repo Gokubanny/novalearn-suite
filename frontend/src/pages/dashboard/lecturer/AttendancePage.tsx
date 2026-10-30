@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Home, BookOpen, Users, FileText, BarChart3, Calendar,
   Camera, CheckCircle, Search, User, Loader2
@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { courseService } from '@/services/course.service';
 import { attendanceService } from '@/services/attendance.service';
+import { getSocket } from '@/lib/socket';
 import { GeofencedSessionPanel } from '@/components/attendance/GeofencedSessionPanel';
 
 const navItems = [
@@ -52,6 +53,23 @@ interface AttendanceRecord {
   matric_number: string | null;
 }
 
+// A geofenced session that is open (or inside its review window) for the
+// selected course. While one exists, the Manual tab works against it live.
+interface LiveSession {
+  sessionId: string;
+  inReview: boolean;
+}
+
+// 'face' = verified by selfie (locked), 'manual' = marked by the lecturer.
+type LiveMethod = 'face' | 'manual';
+
+// The part of a present-student entry from the session results that we use.
+interface LiveResultStudent {
+  _id?: string;
+  id?: string;
+  method?: string;
+}
+
 export default function LecturerAttendancePage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -63,6 +81,12 @@ export default function LecturerAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('geofenced');
+  const activeTabRef = useRef('geofenced');
+  const [live, setLive] = useState<LiveSession | null>(null);
+  const [livePresent, setLivePresent] = useState<Record<string, LiveMethod>>({});
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const refreshLiveRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -75,6 +99,73 @@ export default function LecturerAttendancePage() {
       fetchRecords();
     }
   }, [selectedCourse]);
+
+  // A different course has its own session, so forget the previous one.
+  useEffect(() => {
+    setLive(null);
+    setLivePresent({});
+    setPendingIds(new Set());
+  }, [selectedCourse]);
+
+  // While the Manual tab is open, keep it in step with the course's live
+  // session: who is present (and how), refreshed on a socket push, every 10s
+  // as a fallback, and whenever the browser tab regains focus.
+  useEffect(() => {
+    if (!selectedCourse || activeTab !== 'manual') return;
+    let cancelled = false;
+
+    const fetchLive = async () => {
+      try {
+        const r = await attendanceService.getActiveSession(selectedCourse);
+        const data = r.data?.data ?? null;
+        const sid = data ? (data._id ?? data.id ?? data.sessionId) : null;
+        if (cancelled) return;
+
+        if (!sid) {
+          setLive(null);
+          setLivePresent({});
+          return;
+        }
+
+        const res = await attendanceService.getSessionResults(sid);
+        if (cancelled) return;
+
+        const list: LiveResultStudent[] = Array.isArray(res.data?.data?.presentStudents)
+          ? res.data.data.presentStudents
+          : [];
+        const map: Record<string, LiveMethod> = {};
+        for (const s of list) {
+          const id = String(s._id ?? s.id ?? '');
+          if (id) map[id] = s.method === 'manual' ? 'manual' : 'face';
+        }
+        setLive({ sessionId: String(sid), inReview: !!data.inReview });
+        setLivePresent(map);
+      } catch {
+        /* keep the last known state; the next refresh will retry */
+      }
+    };
+
+    refreshLiveRef.current = fetchLive;
+    fetchLive();
+    const timer = window.setInterval(fetchLive, 10_000);
+
+    const socket = getSocket();
+    const onUpdate = () => { fetchLive(); };
+    socket?.on('attendance:session-update', onUpdate);
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchLive();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      socket?.off('attendance:session-update', onUpdate);
+      document.removeEventListener('visibilitychange', onVisible);
+      if (refreshLiveRef.current === fetchLive) refreshLiveRef.current = null;
+    };
+  }, [selectedCourse, activeTab]);
 
   const fetchCourses = async () => {
     try {
@@ -145,10 +236,63 @@ export default function LecturerAttendancePage() {
     }
   };
 
+  // Records are saved when a session ends (or is saved automatically), which
+  // can happen while another tab is showing — so reload them when opened.
+  const handleTabChange = (value: string) => {
+    // The tab component can report the same change more than once in a single
+    // click, so ignore a tab we have already switched to.
+    if (value === activeTabRef.current) return;
+    activeTabRef.current = value;
+    setActiveTab(value);
+    if (value === 'records' && selectedCourse) fetchRecords();
+  };
+
   const toggleAttendance = (id: string) => {
     setStudents((prev) =>
       prev.map((s) => (s.studentId === id ? { ...s, present: !s.present } : s))
     );
+  };
+
+  // Live mode: mark or un-mark a student on the running session straight away.
+  // Students verified by face are locked and never reach this function.
+  const toggleLive = async (studentId: string) => {
+    if (!live) return;
+    const current = livePresent[studentId];
+    if (current === 'face') return;
+    const makePresent = !current;
+
+    setPendingIds((prev) => new Set(prev).add(studentId));
+    setLivePresent((prev) => {
+      const next = { ...prev };
+      if (makePresent) next[studentId] = 'manual';
+      else delete next[studentId];
+      return next;
+    });
+
+    try {
+      await attendanceService.setManualPresence(live.sessionId, studentId, makePresent);
+    } catch (err) {
+      // Put the switch back the way it was.
+      setLivePresent((prev) => {
+        const next = { ...prev };
+        if (current) next[studentId] = current;
+        else delete next[studentId];
+        return next;
+      });
+      toast({
+        title: 'Could not update attendance',
+        description: (err as { message?: string })?.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(studentId);
+        return next;
+      });
+      // Reconcile with the server either way.
+      refreshLiveRef.current?.();
+    }
   };
 
   const submitAttendance = async () => {
@@ -174,7 +318,9 @@ export default function LecturerAttendancePage() {
     setSubmitting(false);
   };
 
-  const presentCount = students.filter((s) => s.present).length;
+  const presentCount = live
+    ? students.filter((s) => !!livePresent[s.studentId]).length
+    : students.filter((s) => s.present).length;
   const filteredStudents = students.filter((s) =>
     `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.matric_number?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false)
@@ -221,7 +367,7 @@ export default function LecturerAttendancePage() {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="geofenced">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList>
               <TabsTrigger value="geofenced">Geofenced Session</TabsTrigger>
               <TabsTrigger value="manual">Manual Attendance</TabsTrigger>
@@ -259,6 +405,14 @@ export default function LecturerAttendancePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {live && (
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      A geofenced session is {live.inReview ? 'in its review period' : 'in progress'} — changes
+                      here save instantly and students verified by face are locked. Finish with End Session on
+                      the Geofenced Session tab.
+                    </p>
+                  )}
+
                   {/* Bulk actions */}
                   <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-muted/50">
                     <span className="text-sm font-medium">
@@ -268,6 +422,7 @@ export default function LecturerAttendancePage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={!!live}
                         onClick={() => setStudents((p) => p.map((s) => ({ ...s, present: true })))}
                       >
                         All Present
@@ -275,6 +430,7 @@ export default function LecturerAttendancePage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        disabled={!!live}
                         onClick={() => setStudents((p) => p.map((s) => ({ ...s, present: false })))}
                       >
                         All Absent
@@ -288,44 +444,58 @@ export default function LecturerAttendancePage() {
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {filteredStudents.map((student) => (
-                        <div
-                          key={student.studentId}
-                          className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                student.present ? 'bg-green-500' : 'bg-destructive'
-                              }`}
-                            />
-                            <div>
-                              <p className="font-medium text-sm">
-                                {student.first_name} {student.last_name}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {student.matric_number || 'No matric'}
-                              </p>
+                      {filteredStudents.map((student) => {
+                        const liveMethod = live ? livePresent[student.studentId] : undefined;
+                        const isPresent = live ? !!liveMethod : student.present;
+
+                        return (
+                          <div
+                            key={student.studentId}
+                            className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                  isPresent ? 'bg-green-500' : 'bg-destructive'
+                                }`}
+                              />
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {student.first_name} {student.last_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {student.matric_number || 'No matric'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-muted-foreground">
+                                {isPresent ? 'Present' : 'Absent'}
+                                {liveMethod === 'face' && ' · Verified'}
+                                {liveMethod === 'manual' && ' · Manual'}
+                              </span>
+                              <Switch
+                                checked={isPresent}
+                                disabled={
+                                  live
+                                    ? liveMethod === 'face' || pendingIds.has(student.studentId)
+                                    : false
+                                }
+                                onCheckedChange={() =>
+                                  live ? toggleLive(student.studentId) : toggleAttendance(student.studentId)
+                                }
+                              />
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-muted-foreground">
-                              {student.present ? 'Present' : 'Absent'}
-                            </span>
-                            <Switch
-                              checked={student.present}
-                              onCheckedChange={() => toggleAttendance(student.studentId)}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
                   <div className="mt-4 flex justify-end">
                     <Button
                       onClick={submitAttendance}
-                      disabled={submitting || students.length === 0}
+                      disabled={submitting || students.length === 0 || !!live}
                     >
                       {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                       Submit Attendance

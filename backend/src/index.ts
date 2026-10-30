@@ -26,7 +26,7 @@ const startServer = async (): Promise<void> => {
       console.log('╠════════════════════════════════════════╣');
       console.log(`║  Status  : Running ✅                  ║`);
       console.log(`║  Port    : ${PORT}                        ║`);
-      console.log(`║  Mode    : ${process.env.NODE_ENV || 'development'}                ║`);
+      console.log(`║  Mode    : ${process.env.NODE_ENV || 'development'}                 ║`);
       console.log(`║  URL     : http://localhost:${PORT}/api   ║`);
       console.log('╚════════════════════════════════════════╝');
       console.log('');

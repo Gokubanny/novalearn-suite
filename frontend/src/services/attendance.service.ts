@@ -15,6 +15,11 @@ export const attendanceService = {
   getSessionResults: (sessionId: string) =>
     api.get(`/api/attendance/sessions/${sessionId}/results`),
 
+  // Lecturer marks (present: true) or un-marks (present: false) a student by
+  // hand while a session is open. Students verified by face cannot be removed.
+  setManualPresence: (sessionId: string, studentId: string, present: boolean) =>
+    api.patch(`/api/attendance/sessions/${sessionId}/manual/${studentId}`, { present }),
+
   submitSelfie: (
     sessionId: string,
     file: File,

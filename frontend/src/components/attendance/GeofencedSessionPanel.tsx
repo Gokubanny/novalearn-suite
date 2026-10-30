@@ -23,6 +23,10 @@ function formatTimeLeft(ms: number) {
   return `${m}:${s}`;
 }
 
+function formatClock(value: string | number | Date) {
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 function formatAttemptStatus(status?: string) {
   switch (status) {
     case 'location_invalid': return 'Out of range';
@@ -39,6 +43,8 @@ interface PresentStudent {
   matricNumber?: string;
   user?: { firstName?: string; lastName?: string };
   attempts?: number;
+  // 'facial_recognition' (verified by selfie) or 'manual' (marked by the lecturer)
+  method?: string;
 }
 
 interface AttemptedStudent {
@@ -61,6 +67,9 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
   const [totalEnrolled, setTotalEnrolled] = useState(0);
   const [now, setNow] = useState(Date.now());
   const pollRef = useRef<number | null>(null);
+  // True while this lecturer's own End click is in flight, so the live refresh
+  // below doesn't mistake it for an automatic save.
+  const endingRef = useRef(false);
 
   useEffect(() => {
     if (!courseId) return;
@@ -83,6 +92,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
     if (!session) return;
 
     const sid = session._id ?? session.id ?? session.sessionId;
+    let active = true;
 
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
 
@@ -90,7 +100,20 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
       try {
         if (!sid) return;
         const r = await attendanceService.getSessionResults(sid);
+        if (!active) return;
         const data = r.data?.data ?? {};
+
+        // The session was saved while this panel was open (the automatic save
+        // after the review window). Clear it instead of leaving a dead panel.
+        if (data.status === 'closed') {
+          if (endingRef.current) return;
+          toast({ title: 'Session saved', description: 'This session was saved automatically.' });
+          setSession(null);
+          setPresentStudents([]);
+          setAttemptedNotPresent([]);
+          setTotalEnrolled(0);
+          return;
+        }
 
         const list: PresentStudent[] = Array.isArray(data.presentStudents)
           ? data.presentStudents
@@ -121,10 +144,12 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
     socket?.on('attendance:session-update', onSessionUpdate);
 
     return () => {
+      active = false;
       window.clearInterval(tick);
       if (pollRef.current) window.clearInterval(pollRef.current);
       socket?.off('attendance:session-update', onSessionUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   const expiresAt = session?.expiresAt ? new Date(session.expiresAt).getTime() : 0;
@@ -158,6 +183,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
   const end = async () => {
     if (!session) return;
     setEnding(true);
+    endingRef.current = true;
     try {
       await attendanceService.endSession(session._id ?? session.id ?? session.sessionId);
       toast({ title: 'Session ended', description: `${presentStudents.length} students marked present.` });
@@ -168,6 +194,7 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
     } catch (err: any) {
       toast({ title: 'Error', description: err?.message, variant: 'destructive' });
     }
+    endingRef.current = false;
     setEnding(false);
   };
 
@@ -250,6 +277,13 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
               </div>
             </div>
 
+            {expired && session?.reviewDeadline && (
+              <p className="text-xs text-muted-foreground">
+                Students can no longer submit. Mark anyone still missing in the Manual Attendance tab,
+                then press End Session — otherwise it saves automatically at {formatClock(session.reviewDeadline)}.
+              </p>
+            )}
+
             <div className="rounded-lg border">
               <div className="flex items-center justify-between border-b px-3 py-2">
                 <p className="text-sm font-medium">
@@ -291,11 +325,18 @@ export function GeofencedSessionPanel({ courseId, courseLabel }: Props) {
                           )}
                         </div>
                       </div>
-                      {!!s.attempts && s.attempts > 1 && (
-                        <Badge variant="secondary" className="text-xs">
-                          {s.attempts} attempts
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {s.method === 'manual' && (
+                          <Badge variant="outline" className="text-xs">
+                            Manual
+                          </Badge>
+                        )}
+                        {!!s.attempts && s.attempts > 1 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {s.attempts} attempts
+                          </Badge>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
