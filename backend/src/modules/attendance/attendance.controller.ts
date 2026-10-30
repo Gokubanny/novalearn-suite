@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import FormData from 'form-data';
+import mongoose from 'mongoose';
 import Attendance from './attendance.model';
 import Course from '../course/course.model';
 import Student from '../student/student.model';
@@ -10,6 +11,7 @@ import {
 import { AppError } from '../../middleware/error.middleware';
 import { getCurrentSession } from '../../utils/helpers';
 import { callFaceServiceWithRetry } from '../../utils/faceServiceClient';
+import { mergeIntoDayRecord, MergeEntry } from './attendance.merge';
 
 // ── MARK ATTENDANCE (FACIAL RECOGNITION) ────────────────────────────────────
 export const markAttendanceFacial = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -87,47 +89,40 @@ export const markAttendanceFacial = async (req: AuthRequest, res: Response): Pro
     );
   }
 
-  const session = getCurrentSession();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Merge into the day's single record (present wins) instead of refusing
+  // with a 409 when a record for today already exists.
+  const roster = (course.enrolledStudents as any[]).map((student: any) => student._id.toString());
+  const rosterSet = new Set(roster);
 
-  const existingAttendance = await Attendance.findOne({
-    course: courseId,
-    date: { $gte: today },
-  });
-  if (existingAttendance) throw new AppError('Attendance has already been marked for this class today.', 409);
-
-  const records = (course.enrolledStudents as any[]).map((student: any) => {
-    const studentId = student._id.toString();
-    const isRecognized = recognizedStudentIds.includes(studentId);
-    return {
-      student: student._id,
-      status: isRecognized ? AttendanceStatus.PRESENT : AttendanceStatus.ABSENT,
-      markedAt: isRecognized ? new Date() : undefined,
+  const entries: MergeEntry[] = recognizedStudentIds
+    .filter((id) => rosterSet.has(id))
+    .map((id) => ({
+      student: id,
+      status: AttendanceStatus.PRESENT,
       method: 'facial_recognition' as const,
-    };
-  });
+    }));
 
-  const attendance = await Attendance.create({
+  const { doc, created } = await mergeIntoDayRecord({
     course: courseId,
-    school: req.user?.school,
-    session,
+    school: schoolId,
+    session: getCurrentSession(),
     semester: course.semester as Semester,
-    date: new Date(),
-    records,
-    markedBy: req.user?.id,
+    markedBy: req.user?.id as string,
+    roster,
+    entries,
+    defaultMethod: 'facial_recognition',
   });
 
-  const presentCount = records.filter(r => r.status === AttendanceStatus.PRESENT).length;
+  const presentCount = doc.records.filter((r) => r.status === AttendanceStatus.PRESENT).length;
 
-  res.status(201).json({
+  res.status(created ? 201 : 200).json({
     success: true,
-    message: `Attendance marked. ${presentCount} of ${records.length} students recognised.`,
+    message: `Attendance marked. ${presentCount} of ${doc.records.length} students present.`,
     data: {
-      attendanceId: attendance._id,
-      totalStudents: records.length,
+      attendanceId: doc._id,
+      totalStudents: doc.records.length,
       present: presentCount,
-      absent: records.length - presentCount,
+      absent: doc.records.length - presentCount,
     },
   });
 };
@@ -137,6 +132,10 @@ export const markAttendanceManual = async (req: AuthRequest, res: Response): Pro
   const { courseId } = req.params;
   const { records } = req.body;
 
+  if (!Array.isArray(records) || records.length === 0) {
+    throw new AppError('Attendance records are required.', 400);
+  }
+
   const lecturer = await Lecturer.findOne({ user: req.user?.id, school: req.user?.school });
   if (!lecturer) throw new AppError('Lecturer profile not found.', 404);
 
@@ -145,34 +144,45 @@ export const markAttendanceManual = async (req: AuthRequest, res: Response): Pro
   });
   if (!course) throw new AppError('Course not found or unauthorized.', 404);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const roster = course.enrolledStudents.map((id: any) => id.toString());
+  const rosterSet = new Set(roster);
+  const validStatuses = new Set<string>(Object.values(AttendanceStatus));
 
-  const existingAttendance = await Attendance.findOne({
+  // Keep only enrolled students with a recognised status.
+  const entries: MergeEntry[] = records
+    .filter(
+      (r: { studentId: string; status: AttendanceStatus }) =>
+        r &&
+        mongoose.isValidObjectId(r.studentId) &&
+        rosterSet.has(String(r.studentId)) &&
+        validStatuses.has(r.status)
+    )
+    .map((r: { studentId: string; status: AttendanceStatus }) => ({
+      student: String(r.studentId),
+      status: r.status,
+      method: 'manual' as const,
+    }));
+
+  // Merge into the day's single record (present wins) instead of refusing
+  // with a 409 when a record for today already exists.
+  const { doc, created } = await mergeIntoDayRecord({
     course: courseId,
-    date: { $gte: today },
-  });
-  if (existingAttendance) throw new AppError('Attendance already marked for today.', 409);
-
-  const session = getCurrentSession();
-  const attendanceRecords = records.map((r: { studentId: string; status: AttendanceStatus }) => ({
-    student: r.studentId,
-    status: r.status,
-    markedAt: r.status === AttendanceStatus.PRESENT ? new Date() : undefined,
-    method: 'manual' as const,
-  }));
-
-  const attendance = await Attendance.create({
-    course: courseId,
-    school: req.user?.school,
-    session,
+    school: req.user?.school as string,
+    session: getCurrentSession(),
     semester: course.semester as Semester,
-    date: new Date(),
-    records: attendanceRecords,
-    markedBy: req.user?.id,
+    markedBy: req.user?.id as string,
+    roster,
+    entries,
+    defaultMethod: 'manual',
   });
 
-  res.status(201).json({ success: true, message: 'Manual attendance recorded.', data: attendance });
+  res.status(created ? 201 : 200).json({
+    success: true,
+    message: created
+      ? 'Manual attendance recorded.'
+      : "Today's attendance record updated. Students already marked present were kept.",
+    data: doc,
+  });
 };
 
 // ── GET COURSE ATTENDANCE HISTORY ────────────────────────────────────────────

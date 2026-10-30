@@ -5,6 +5,7 @@ import http from 'http';
 import app from './app';
 import connectDB from './config/db';
 import { initSocket } from './realtime/socket';
+import { startSessionSweep } from './modules/attendance/session.controller';
 
 const PORT = process.env.PORT || 5000;
 
@@ -15,6 +16,9 @@ const startServer = async (): Promise<void> => {
     const httpServer = http.createServer(app);
     initSocket(httpServer);
 
+    // Saves attendance sessions that expired without the lecturer ending them.
+    startSessionSweep();
+
     const server = httpServer.listen(PORT, () => {
       console.log('');
       console.log('╔════════════════════════════════════════╗');
@@ -22,7 +26,7 @@ const startServer = async (): Promise<void> => {
       console.log('╠════════════════════════════════════════╣');
       console.log(`║  Status  : Running ✅                  ║`);
       console.log(`║  Port    : ${PORT}                        ║`);
-      console.log(`║  Mode    : ${process.env.NODE_ENV || 'development'}               ║`);
+      console.log(`║  Mode    : ${process.env.NODE_ENV || 'development'}                ║`);
       console.log(`║  URL     : http://localhost:${PORT}/api   ║`);
       console.log('╚════════════════════════════════════════╝');
       console.log('');

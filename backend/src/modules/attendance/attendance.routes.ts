@@ -6,7 +6,7 @@ import {
 } from './attendance.controller';
 import {
   startSession, endSession, getActiveSession,
-  submitSelfie, getSessionResults,
+  submitSelfie, getSessionResults, setManualPresence,
 } from './session.controller';
 import { protect, authorize } from '../../middleware/auth.middleware';
 import { uploadFaceImage } from '../../middleware/upload.middleware';
@@ -29,6 +29,13 @@ router.post('/sessions/courses/:courseId/start', authorize(UserRole.LECTURER), s
 router.patch('/sessions/:sessionId/end', authorize(UserRole.LECTURER), endSession);
 router.get('/sessions/courses/:courseId/active', protect, getActiveSession);
 router.get('/sessions/:sessionId/results', authorize(UserRole.LECTURER), getSessionResults);
+
+// Lecturer: mark (or un-mark) a student present by hand while the session is open
+router.patch(
+  '/sessions/:sessionId/manual/:studentId',
+  authorize(UserRole.LECTURER),
+  setManualPresence
+);
 
 // Student: submit selfie during open session
 router.post(

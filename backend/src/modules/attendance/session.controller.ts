@@ -1,19 +1,87 @@
 import { Response } from 'express';
 import FormData from 'form-data';
+import mongoose, { Types } from 'mongoose';
 import AttendanceSession from './attendance-session.model';
-import Attendance from './attendance.model';
 import Course from '../course/course.model';
 import Student from '../student/student.model';
 import Lecturer from '../lecturer/lecturer.model';
 import Notification from '../notification/notification.model';
-import { AuthRequest, AttendanceStatus, NotificationType } from '../../types';
+import { AuthRequest, AttendanceStatus, NotificationType, Semester, UserRole } from '../../types';
 import { AppError } from '../../middleware/error.middleware';
 import { getCurrentSession } from '../../utils/helpers';
 import { callFaceServiceWithRetry } from '../../utils/faceServiceClient';
 import { emitToUser } from '../../realtime/socket';
+import { mergeIntoDayRecord, MergeEntry } from './attendance.merge';
 
 const FACE_SERVICE_URL = process.env.FACE_RECOGNITION_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+
+// Students can only submit until a session's expiry time. After that the
+// lecturer still has this long to review the list and mark anyone who was in
+// class but could not verify, before the session is saved automatically.
+export const REVIEW_GRACE_MINUTES = 15;
+const REVIEW_GRACE_MS = REVIEW_GRACE_MINUTES * 60 * 1000;
+const SWEEP_INTERVAL_MS = 60 * 1000;
+
+const reviewDeadlineOf = (expiresAt: Date): Date =>
+  new Date(expiresAt.getTime() + REVIEW_GRACE_MS);
+
+// ── HELPER: FINALIZE ATTENDANCE RECORD ────────────────────────────────────────
+// Saves a closed session into the course's single record for that day.
+// Throws on failure so the caller can reopen the session instead of losing it.
+export const finalizeAttendance = async (session: any): Promise<void> => {
+  const course = await Course.findById(session.course);
+  if (!course) {
+    console.warn(`Session ${session._id}: course no longer exists, nothing to save.`);
+    return;
+  }
+
+  const roster = course.enrolledStudents.map((id: any) => id.toString());
+  const presentIds = new Set<string>((session.presentStudents ?? []).map((id: any) => id.toString()));
+  const manualIds = new Set<string>((session.manualStudents ?? []).map((id: any) => id.toString()));
+
+  const entries: MergeEntry[] = roster
+    .filter((id: string) => presentIds.has(id))
+    .map((id: string) => ({
+      student: id,
+      status: AttendanceStatus.PRESENT,
+      method: manualIds.has(id) ? ('manual' as const) : ('facial_recognition' as const),
+    }));
+
+  await mergeIntoDayRecord({
+    course: session.course.toString(),
+    school: session.school.toString(),
+    session: session.session,
+    semester: session.semester as Semester,
+    markedBy: session.lecturer.toString(),
+    roster,
+    entries,
+    defaultMethod: 'facial_recognition',
+    date: session.createdAt, // the day the class actually took place
+  });
+};
+
+// ── HELPER: CLOSE A SESSION AND SAVE IT (atomic) ──────────────────────────────
+// Flipping open → closed is a single database step, so if the lecturer presses
+// End at the same moment the sweep runs, only one of them wins and the other
+// gets null back. If saving fails the session is reopened, so nothing is lost
+// and the sweep (or the lecturer) can try again.
+const closeAndFinalize = async (filter: any) => {
+  const claimed = await AttendanceSession.findOneAndUpdate(
+    { ...filter, status: 'open' },
+    { $set: { status: 'closed' } },
+    { new: true }
+  );
+  if (!claimed) return null;
+
+  try {
+    await finalizeAttendance(claimed);
+  } catch (error) {
+    await AttendanceSession.updateOne({ _id: claimed._id }, { $set: { status: 'open' } });
+    throw error;
+  }
+  return claimed;
+};
 
 // ── START ATTENDANCE SESSION (Lecturer) ────────────────────────────────────────
 export const startSession = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -32,6 +100,19 @@ export const startSession = async (req: AuthRequest, res: Response): Promise<voi
     _id: courseId, lecturer: lecturer._id, school: req.user?.school,
   });
   if (!course) throw new AppError('Course not found or unauthorized.', 404);
+
+  // An earlier session for this course that expired but was never reviewed is
+  // saved now — starting a new session means the review is over.
+  const staleSessions = await AttendanceSession.find({
+    course: courseId, status: 'open', expiresAt: { $lte: new Date() },
+  }).select('_id');
+  for (const stale of staleSessions) {
+    try {
+      await closeAndFinalize({ _id: stale._id });
+    } catch (error) {
+      console.error('Could not save an expired session before starting a new one:', error);
+    }
+  }
 
   const existingSession = await AttendanceSession.findOne({
     course: courseId, status: 'open',
@@ -85,46 +166,63 @@ export const startSession = async (req: AuthRequest, res: Response): Promise<voi
       courseId,
       courseCode: course.code,
       expiresAt,
+      reviewDeadline: reviewDeadlineOf(expiresAt),
       durationMinutes,
     },
   });
 };
 
-// ── END SESSION EARLY (Lecturer) ──────────────────────────────────────────────
+// ── END SESSION AND SAVE (Lecturer) ───────────────────────────────────────────
+// Also used to save a session that has expired but is still inside the review
+// window. Manual marks made while the session was open are already stored on
+// the session, so they are included automatically.
 export const endSession = async (req: AuthRequest, res: Response): Promise<void> => {
   const { sessionId } = req.params;
 
-  const session = await AttendanceSession.findOne({
-    _id: sessionId,
-    lecturer: req.user?.id,
-    status: 'open',
-  });
+  if (!mongoose.isValidObjectId(sessionId)) throw new AppError('Invalid session id.', 400);
+
+  let session;
+  try {
+    session = await closeAndFinalize({ _id: sessionId, lecturer: req.user?.id });
+  } catch (error) {
+    console.error('Error finalizing attendance:', error);
+    throw new AppError('Could not save attendance. The session is still open — please try again.', 500);
+  }
   if (!session) throw new AppError('Session not found or already closed.', 404);
-
-  session.status = 'closed';
-  await session.save();
-
-  await finalizeAttendance(session);
 
   res.status(200).json({
     success: true,
     message: 'Session closed and attendance finalized.',
     data: {
       presentCount: session.presentStudents.length,
+      manualCount: (session.manualStudents ?? []).length,
       submittedCount: session.submittedStudents.length,
     },
   });
 };
 
 // ── GET ACTIVE SESSION FOR COURSE ─────────────────────────────────────────────
+// Students only ever see a session that is genuinely open for submissions.
+// The lecturer also gets back a session that has expired but is still inside
+// the review window, so they can finish marking and save it (even after a
+// page refresh).
 export const getActiveSession = async (req: AuthRequest, res: Response): Promise<void> => {
   const { courseId } = req.params;
 
-  const session = await AttendanceSession.findOne({
-    course: courseId,
-    status: 'open',
-    expiresAt: { $gt: new Date() },
-  }).populate('course', 'title code');
+  const isLecturer = req.user?.role === UserRole.LECTURER;
+  const now = new Date();
+
+  const filter: any = { course: courseId, status: 'open' };
+  if (isLecturer) {
+    filter.lecturer = req.user?.id;
+    filter.expiresAt = { $gt: new Date(now.getTime() - REVIEW_GRACE_MS) };
+  } else {
+    filter.expiresAt = { $gt: now };
+  }
+
+  const session = await AttendanceSession.findOne(filter)
+    .sort({ createdAt: -1 })
+    .populate('course', 'title code');
 
   if (!session) {
     res.status(200).json({
@@ -143,6 +241,8 @@ export const getActiveSession = async (req: AuthRequest, res: Response): Promise
       id: session._id,
       sessionId: session._id,
       expiresAt: session.expiresAt,
+      reviewDeadline: reviewDeadlineOf(session.expiresAt),
+      inReview: session.expiresAt.getTime() <= now.getTime(),
       durationMinutes: session.durationMinutes,
       submittedCount: session.submittedStudents.length,
     },
@@ -300,38 +400,83 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
-// ── HELPER: FINALIZE ATTENDANCE RECORD ────────────────────────────────────────
-export const finalizeAttendance = async (session: any): Promise<void> => {
-  try {
-    const course = await Course.findById(session.course);
-    if (!course) return;
+// ── MARK / UNMARK A STUDENT MANUALLY WHILE THE SESSION IS OPEN (Lecturer) ─────
+// For students who were in class but could not verify by face. The student is
+// also recorded as "submitted", so a later selfie attempt gets a clear
+// "already submitted" answer instead of spending a face check. Removing a
+// manual mark reverses all of that. Students verified by face are locked.
+export const setManualPresence = async (req: AuthRequest, res: Response): Promise<void> => {
+  const { sessionId, studentId } = req.params;
+  const { present } = req.body;
 
-    const enrolledStudents = course.enrolledStudents;
-
-    const records = enrolledStudents.map((studentId: any) => {
-      const isPresent = session.presentStudents.some(
-        (p: any) => p.toString() === studentId.toString()
-      );
-      return {
-        student: studentId,
-        status: isPresent ? AttendanceStatus.PRESENT : AttendanceStatus.ABSENT,
-        markedAt: isPresent ? new Date() : undefined,
-        method: 'facial_recognition' as const,
-      };
-    });
-
-    await Attendance.create({
-      course: session.course,
-      school: session.school,
-      session: session.session,
-      semester: session.semester,
-      date: session.createdAt,
-      records,
-      markedBy: session.lecturer,
-    });
-  } catch (error) {
-    console.error('Error finalizing attendance:', error);
+  if (typeof present !== 'boolean') throw new AppError('"present" must be true or false.', 400);
+  if (!mongoose.isValidObjectId(sessionId) || !mongoose.isValidObjectId(studentId)) {
+    throw new AppError('Invalid session or student id.', 400);
   }
+
+  const session = await AttendanceSession.findOne({ _id: sessionId, lecturer: req.user?.id });
+  if (!session) throw new AppError('Session not found.', 404);
+  if (session.status !== 'open') {
+    throw new AppError('This session is already saved. Use Manual Attendance to add students.', 409);
+  }
+
+  const course = await Course.findOne({ _id: session.course, school: req.user?.school });
+  const enrolled = !!course && course.enrolledStudents.some((id) => id.toString() === studentId);
+  if (!enrolled) throw new AppError('That student is not enrolled in this course.', 400);
+
+  const sid = new Types.ObjectId(studentId);
+  const closedMeanwhile = async (): Promise<boolean> =>
+    !(await AttendanceSession.exists({ _id: sessionId, status: 'open' }));
+
+  if (present) {
+    // Matches only if the student is not already present (by face or by hand).
+    const result = await AttendanceSession.updateOne(
+      { _id: sessionId, status: 'open', presentStudents: { $ne: sid } },
+      { $addToSet: { presentStudents: sid, manualStudents: sid, submittedStudents: sid } }
+    );
+
+    if (result.matchedCount === 0) {
+      if (await closedMeanwhile()) {
+        throw new AppError('This session was just saved. Use Manual Attendance to add students.', 409);
+      }
+      res.status(200).json({
+        success: true,
+        message: 'Already marked present.',
+        data: { studentId, present: true, changed: false },
+      });
+      return;
+    }
+  } else {
+    // Matches only if this student was marked by hand.
+    const result = await AttendanceSession.updateOne(
+      { _id: sessionId, status: 'open', manualStudents: sid },
+      { $pull: { presentStudents: sid, manualStudents: sid, submittedStudents: sid } }
+    );
+
+    if (result.matchedCount === 0) {
+      if (await closedMeanwhile()) {
+        throw new AppError('This session was just saved. Use Manual Attendance to change it.', 409);
+      }
+      const inPresent = session.presentStudents.some((id) => id.toString() === studentId);
+      if (inPresent) {
+        throw new AppError('This student was verified by face and cannot be removed.', 409);
+      }
+      res.status(200).json({
+        success: true,
+        message: 'Student was not marked present.',
+        data: { studentId, present: false, changed: false },
+      });
+      return;
+    }
+  }
+
+  await notifyLecturerOfSessionUpdate(sessionId);
+
+  res.status(200).json({
+    success: true,
+    message: present ? 'Marked present manually.' : 'Manual mark removed.',
+    data: { studentId, present, changed: true },
+  });
 };
 
 // ── GET SESSION RESULTS (Lecturer) ────────────────────────────────────────────
@@ -354,21 +499,27 @@ export const getSessionResults = async (req: AuthRequest, res: Response): Promis
   const presentIds = new Set(
     session.presentStudents.map((s: any) => s._id.toString())
   );
+  const manualIds = new Set<string>(
+    (session.manualStudents ?? []).map((id: any) => id.toString())
+  );
 
   const attemptByStudent = new Map<string, any>();
   (session.attemptCounts || []).forEach((a: any) => {
     if (a.student) attemptByStudent.set(a.student._id.toString(), a);
   });
 
-  // Present students, now with their attempt count attached (useful to see
-  // e.g. "took 3 tries" even for a successful student).
+  // Present students, with how they were marked and their attempt count
+  // (useful to see e.g. "took 3 tries" even for a successful student).
   const presentStudents = session.presentStudents.map((s: any) => {
-    const a = attemptByStudent.get(s._id.toString());
+    const id = s._id.toString();
+    const a = attemptByStudent.get(id);
+    const isManual = manualIds.has(id);
     return {
       _id: s._id,
       matricNumber: s.matricNumber,
       user: s.user,
-      attempts: a?.count ?? 1,
+      method: isManual ? 'manual' : 'facial_recognition',
+      attempts: a?.count ?? (isManual ? 0 : 1),
     };
   });
 
@@ -392,11 +543,63 @@ export const getSessionResults = async (req: AuthRequest, res: Response): Promis
       status: session.status,
       totalEnrolled,
       presentCount: session.presentStudents.length,
+      manualCount: presentStudents.filter((s) => s.method === 'manual').length,
       absentCount: totalEnrolled - session.presentStudents.length,
       presentStudents,
       attemptedNotPresent,
       attemptedNotPresentCount: attemptedNotPresent.length,
       expiresAt: session.expiresAt,
+      reviewDeadline: reviewDeadlineOf(session.expiresAt),
+      graceMinutes: REVIEW_GRACE_MINUTES,
     },
   });
+};
+
+// ── SWEEP: SAVE SESSIONS NOBODY ENDED ─────────────────────────────────────────
+// Finds sessions still marked open whose review window has passed, and saves
+// them. It reads expiry times from the database (no in-memory timers), so a
+// restart or a sleeping Render instance only delays the save — the next sweep
+// catches up.
+export const closeExpiredSessions = async (): Promise<number> => {
+  const cutoff = new Date(Date.now() - REVIEW_GRACE_MS);
+  const overdue = await AttendanceSession.find({
+    status: 'open',
+    expiresAt: { $lte: cutoff },
+  }).select('_id');
+
+  let saved = 0;
+  for (const { _id } of overdue) {
+    try {
+      const closed = await closeAndFinalize({ _id });
+      if (closed) saved++;
+    } catch (error) {
+      console.error(`Attendance sweep could not save session ${_id}:`, error);
+    }
+  }
+  return saved;
+};
+
+let sweepTimer: NodeJS.Timeout | null = null;
+let sweepRunning = false;
+
+export const startSessionSweep = (): void => {
+  if (sweepTimer) return;
+
+  const run = async (): Promise<void> => {
+    if (sweepRunning) return; // never let two sweeps overlap
+    sweepRunning = true;
+    try {
+      const saved = await closeExpiredSessions();
+      if (saved > 0) console.log(`🧹 Attendance sweep saved ${saved} expired session(s).`);
+    } catch (error) {
+      console.error('Attendance sweep failed:', error);
+    } finally {
+      sweepRunning = false;
+    }
+  };
+
+  void run(); // catch up straight away after a restart or a sleep
+  sweepTimer = setInterval(run, SWEEP_INTERVAL_MS);
+  sweepTimer.unref(); // never keeps the process alive on shutdown
+  console.log('✅ Attendance session sweep started');
 };

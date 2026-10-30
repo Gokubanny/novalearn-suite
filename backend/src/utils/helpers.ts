@@ -83,6 +83,21 @@ export const getCurrentSession = (): string => {
   return `${year - 1}/${year}`;
 };
 
+// ── LAGOS DAY WINDOW ──────────────────────────────────────────────────────────
+// Nigeria (Africa/Lagos) is UTC+1 all year with no daylight saving, so a fixed
+// offset is exact. Render runs in UTC, so setHours(0, 0, 0, 0) on the server
+// would roll "today" over at 1am Lagos time instead of at midnight.
+// Returns [start, end) of the Lagos calendar day that contains `date`.
+const LAGOS_OFFSET_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const getLagosDayRange = (date: Date = new Date()): { start: Date; end: Date } => {
+  const localMs = date.getTime() + LAGOS_OFFSET_MS;
+  const startLocalMs = Math.floor(localMs / DAY_MS) * DAY_MS;
+  const start = new Date(startLocalMs - LAGOS_OFFSET_MS);
+  return { start, end: new Date(start.getTime() + DAY_MS) };
+};
+
 // Paginate query results
 export const paginateQuery = (
   query: Record<string, unknown>,

@@ -14,6 +14,9 @@ export interface IAttendanceSession extends Document {
   status: 'open' | 'closed';
   presentStudents: Types.ObjectId[];
   submittedStudents: Types.ObjectId[];
+  // Subset of presentStudents the lecturer marked by hand (not verified by
+  // face). Lets the saved record keep the true method for each student.
+  manualStudents: Types.ObjectId[];
   attemptCounts: {
     student: Types.ObjectId;
     count: number;
@@ -46,6 +49,7 @@ const AttendanceSessionSchema = new Schema<IAttendanceSession>(
     },
     presentStudents:   [{ type: Schema.Types.ObjectId, ref: 'Student' }],
     submittedStudents: [{ type: Schema.Types.ObjectId, ref: 'Student' }],
+    manualStudents:    [{ type: Schema.Types.ObjectId, ref: 'Student' }],
     // One entry per student who has made at least one selfie attempt this
     // session — tracks how many tries and what the most recent outcome was,
     // so the lecturer can see "attempted but not yet present" separately
@@ -65,5 +69,7 @@ const AttendanceSessionSchema = new Schema<IAttendanceSession>(
 AttendanceSessionSchema.index({ course: 1, status: 1 });
 AttendanceSessionSchema.index({ school: 1 });
 AttendanceSessionSchema.index({ expiresAt: 1 });
+// Used by the once-a-minute sweep that saves sessions nobody ended.
+AttendanceSessionSchema.index({ status: 1, expiresAt: 1 });
 
 export default mongoose.model<IAttendanceSession>('AttendanceSession', AttendanceSessionSchema);
