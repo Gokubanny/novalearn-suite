@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from typing import Optional
+import threading
 
 from models import (
     FaceRegisterResponse,
@@ -25,6 +26,7 @@ from face_service import (
     upload_face_to_cloudinary,
     verify_single_face,
     recognize_faces_in_class_photo,
+    warm_up_models,
 )
 from geo_service import validate_student_location, is_valid_coordinate
 from database import (
@@ -34,8 +36,8 @@ from database import (
     save_face_encoding,
     get_all_students_with_encodings,
     get_active_session,
-    has_student_submitted,
-    mark_student_submitted,
+    get_student_presence,
+    mark_student_present,
 )
 
 load_dotenv()
@@ -49,6 +51,13 @@ async def lifespan(app: FastAPI):
     print(f"✅ NexFord Face Recognition Service started")
     print(f"   Model    : {FACE_MODEL}")
     print(f"   Detector : {FACE_DETECTOR}")
+
+    # Load the models in the background so the first selfie of the day is not
+    # the one that pays for the weight download. /health still answers at once.
+    # Set FACE_WARMUP=false to turn this off.
+    if os.getenv("FACE_WARMUP", "true").lower() != "false":
+        threading.Thread(target=warm_up_models, name="model-warmup", daemon=True).start()
+
     yield
     close_db()
     print("🛑 Service shutting down")
@@ -143,6 +152,29 @@ async def selfie_attendance(
     if not is_valid_coordinate(student_latitude, student_longitude):
         raise HTTPException(status_code=400, detail="Invalid GPS coordinates provided.")
 
+    # If this student is already on record as present, that IS the answer —
+    # whether it came from an earlier attempt whose reply the backend never
+    # received, or from the lecturer. Return it instead of verifying again.
+    # (Checked before the session's open/expired state: a recorded answer stays
+    # true after the session ends.) With no answer on record we carry on and
+    # verify the face now, so a retry always ends with a real answer.
+    presence = get_student_presence(session_id, student_id)
+    if presence:
+        return {
+            "success": True,
+            "message": (
+                "Your lecturer has already marked you present."
+                if presence == "manual"
+                else "Your attendance is already recorded as present."
+            ),
+            "student_id": student_id,
+            "face_matched": presence == "face",
+            "location_valid": True,
+            "distance_metres": None,
+            "marked_present": True,
+            "already_submitted": True,
+        }
+
     session = get_active_session(session_id)
     if not session:
         raise HTTPException(
@@ -158,12 +190,6 @@ async def selfie_attendance(
         raise HTTPException(
             status_code=400,
             detail="Lecturer location not recorded for this session."
-        )
-
-    if has_student_submitted(session_id, student_id):
-        raise HTTPException(
-            status_code=409,
-            detail="You have already submitted attendance for this session."
         )
 
     geo_result = validate_student_location(
@@ -248,7 +274,23 @@ async def selfie_attendance(
             "marked_present": False,
         }
 
-    mark_student_submitted(session_id, student_id)
+    # Record the result here, the moment it is known. The backend may already
+    # have stopped waiting for this reply (cold start, slow network), so the
+    # database — not the HTTP response — is what makes the attendance count.
+    recorded = mark_student_present(session_id, student_id)
+    if not recorded:
+        return {
+            "success": False,
+            "message": (
+                "Your face matched, but this session has just been closed, so it "
+                "could not be recorded. Please ask your lecturer to mark you present."
+            ),
+            "student_id": student_id,
+            "face_matched": True,
+            "location_valid": True,
+            "distance_metres": distance_metres,
+            "marked_present": False,
+        }
 
     return {
         "success": True,

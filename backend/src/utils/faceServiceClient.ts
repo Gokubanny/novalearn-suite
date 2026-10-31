@@ -7,17 +7,22 @@ import FormData from 'form-data';
  * often fails while the service is still waking up, then the retry
  * succeeds once it's warm.
  *
- * Each individual attempt times out at 30s — if a response takes
- * exactly ~30,000ms, that's this axios timeout firing, not a bug in
- * the face service itself. Cross-check the face service logs at that
+ * Each individual attempt times out after `attemptTimeoutMs` (default 30s) —
+ * if a response takes exactly that long, it's this axios timeout firing, not
+ * a bug in the face service itself. Cross-check the face service logs at that
  * timestamp before assuming a code issue.
+ *
+ * Callers whose requests are safe to repeat (the selfie endpoint answers a
+ * repeat from what it has already recorded) can pass a longer attempt timeout
+ * and a short retry delay instead of the cold-start defaults.
  */
 export const callFaceServiceWithRetry = async (
   url: string,
   getFormData: () => FormData, // fresh FormData per attempt — a used stream can't be resent
   headers: Record<string, string>,
   maxRetries: number = 2,
-  retryDelay: number = 120000
+  retryDelay: number = 120000,
+  attemptTimeoutMs: number = 30000
 ): Promise<any> => {
   let lastError: any;
   let delay = retryDelay;
@@ -29,7 +34,7 @@ export const callFaceServiceWithRetry = async (
 
       const response = await axios.post(url, formData, {
         headers: { ...formData.getHeaders(), ...headers },
-        timeout: 30000,
+        timeout: attemptTimeoutMs,
       });
 
       console.log(`Face service attempt ${attempt} succeeded`);

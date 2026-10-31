@@ -16,6 +16,14 @@ import { mergeIntoDayRecord, MergeEntry } from './attendance.merge';
 const FACE_SERVICE_URL = process.env.FACE_RECOGNITION_SERVICE_URL;
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
+// The first selfie after the face service restarts can take ~45s (it downloads
+// its model weights), so each attempt gets room for that. Retries are quick
+// because the face service answers a repeat request from what it has already
+// recorded, so asking again is safe. Worst case 80s + 5s + 80s = 165s, which
+// stays inside the 200s the frontend waits.
+const SELFIE_ATTEMPT_TIMEOUT_MS = 80 * 1000;
+const SELFIE_RETRY_DELAY_MS = 5 * 1000;
+
 // Students can only submit until a session's expiry time. After that the
 // lecturer still has this long to review the list and mark anyone who was in
 // class but could not verify, before the session is saved automatically.
@@ -296,6 +304,28 @@ const notifyLecturerOfSessionUpdate = async (sessionId: string): Promise<void> =
   }
 };
 
+// ── HELPER: IS THIS STUDENT ALREADY RECORDED PRESENT ON THE SESSION? ─────────
+// The face service writes its result to the same database. After a timeout this
+// reveals a verification that finished after we stopped waiting, so the student
+// gets the real answer instead of an error. 'manual' = marked by the lecturer.
+const findExistingPresence = async (
+  sessionId: string,
+  studentId: any
+): Promise<'face' | 'manual' | null> => {
+  const session = await AttendanceSession.findOne({
+    _id: sessionId,
+    presentStudents: studentId,
+  })
+    .select('manualStudents')
+    .lean();
+  if (!session) return null;
+
+  const isManual = (session.manualStudents ?? []).some(
+    (id) => id.toString() === studentId.toString()
+  );
+  return isManual ? 'manual' : 'face';
+};
+
 // ── STUDENT SELFIE SUBMISSION ──────────────────────────────────────────────────
 export const submitSelfie = async (req: AuthRequest, res: Response): Promise<void> => {
   const { sessionId } = req.params;
@@ -329,7 +359,8 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
       getFormData,
       { 'x-api-key': INTERNAL_API_KEY },
       2,
-      120000
+      SELFIE_RETRY_DELAY_MS,
+      SELFIE_ATTEMPT_TIMEOUT_MS
     );
 
     const result = faceResponse.data;
@@ -342,17 +373,21 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
       : result.location_valid === false
         ? 'location_invalid'
         : 'face_mismatch';
-    await recordAttempt(sessionId, student._id, attemptStatus);
+    // A repeat answer ("already recorded") is not a new attempt — skip it so a
+    // retry does not inflate the student's attempt count.
+    if (!result.already_submitted) {
+      await recordAttempt(sessionId, student._id, attemptStatus);
+    }
 
     // Let the lecturer's open panel know something changed — on both a
     // success and a recorded failure, since "attempted, not present" is
     // also shown live.
     await notifyLecturerOfSessionUpdate(sessionId);
 
-    // Only bookkeep submittedStudents/presentStudents on genuine success —
-    // Python's own has_student_submitted() check reads submittedStudents to
-    // decide whether to 409 a retry, so writing here on failure would
-    // permanently lock a student out after one bad attempt.
+    // Only bookkeep on genuine success. The face service normally records the
+    // student itself the moment it verifies them; this is the same idempotent
+    // write, so it also covers a face service that has not been updated yet.
+    // Never write on failure: a failed attempt must stay retryable.
     if (result.marked_present) {
       await AttendanceSession.findByIdAndUpdate(sessionId, {
         $addToSet: { presentStudents: student._id, submittedStudents: student._id }
@@ -377,6 +412,34 @@ export const submitSelfie = async (req: AuthRequest, res: Response): Promise<voi
       status: error.response?.status,
       code: error.code,
     });
+
+    // The face service may have recorded this student after we stopped waiting
+    // (or on an earlier attempt). The database is the source of truth, so check
+    // it before reporting an error.
+    let existing: 'face' | 'manual' | null = null;
+    try {
+      existing = await findExistingPresence(sessionId, student._id);
+    } catch {
+      /* could not check — fall through to the normal error handling */
+    }
+    if (existing) {
+      await notifyLecturerOfSessionUpdate(sessionId);
+      res.status(200).json({
+        success: true,
+        message:
+          existing === 'manual'
+            ? 'Your lecturer has already marked you present.'
+            : 'Attendance marked successfully. You have been recorded as present.',
+        data: {
+          faceMatched: existing === 'face',
+          locationValid: true,
+          distanceMetres: null,
+          markedPresent: true,
+          alreadySubmitted: existing === 'manual',
+        },
+      });
+      return;
+    }
 
     if (error.response?.status === 429) {
       throw new AppError(

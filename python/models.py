@@ -26,6 +26,9 @@ class SelfieAttendanceResponse(BaseModel):
     location_valid: bool
     distance_metres: Optional[float] = None
     marked_present: bool
+    # True when this is a repeat request and the answer was already on record
+    # (nothing was verified again).
+    already_submitted: bool = False
 
 
 class ClassPhotoResponse(BaseModel):

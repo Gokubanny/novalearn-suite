@@ -120,34 +120,51 @@ def get_active_session(session_id: str) -> Optional[Dict]:
         return None
 
 
-def mark_student_submitted(session_id: str, student_id: str) -> bool:
+def mark_student_present(session_id: str, student_id: str) -> bool:
     """
-    Record that a student has already submitted a selfie for this session.
-    Prevents duplicate submissions.
+    Record a face-verified student as present (and as submitted) on the session.
+
+    This runs the moment verification succeeds, so the answer is stored even if
+    the backend has already stopped waiting for the HTTP reply. It only applies
+    while the session is still open; it returns False if the session was
+    already saved or closed, so the caller never reports a success that was
+    not actually recorded.
     """
     db = get_db()
     try:
+        sid = ObjectId(student_id)
         result = db.attendancesessions.update_one(
-            {"_id": ObjectId(session_id)},
-            {"$addToSet": {"submittedStudents": ObjectId(student_id)}}
+            {"_id": ObjectId(session_id), "status": "open"},
+            {"$addToSet": {"presentStudents": sid, "submittedStudents": sid}}
         )
-        return result.modified_count > 0
+        return result.matched_count > 0
     except Exception as e:
-        print(f"Error recording submission: {e}")
+        print(f"Error recording presence: {e}")
         return False
 
 
-def has_student_submitted(session_id: str, student_id: str) -> bool:
-    """Check if a student has already submitted a selfie for this session."""
+def get_student_presence(session_id: str, student_id: str) -> Optional[str]:
+    """
+    Is this student already recorded as present on the session?
+
+    Returns "face" (verified by selfie), "manual" (marked by the lecturer) or
+    None (no answer on record yet). The session is looked up by id only: a
+    recorded answer stays true after the session expires or is saved.
+    """
     db = get_db()
     try:
-        session = db.attendancesessions.find_one({
-            "_id": ObjectId(session_id),
-            "submittedStudents": ObjectId(student_id)
-        })
-        return session is not None
-    except Exception:
-        return False
+        sid = ObjectId(student_id)
+        session = db.attendancesessions.find_one(
+            {"_id": ObjectId(session_id), "presentStudents": sid},
+            {"manualStudents": 1}
+        )
+        if session is None:
+            return None
+        manual = session.get("manualStudents") or []
+        return "manual" if sid in manual else "face"
+    except Exception as e:
+        print(f"Error checking student presence: {e}")
+        return None
 
 
 # ── SCHOOL QUERIES ─────────────────────────────────────────────────────────────

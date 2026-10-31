@@ -1,4 +1,6 @@
 import os
+import time
+import threading
 import cv2
 import numpy as np
 import tempfile
@@ -23,6 +25,41 @@ FACE_DETECTOR   = os.getenv("FACE_DETECTOR",         "ssd")        # better than
 DISTANCE_METRIC = os.getenv("FACE_DISTANCE_METRIC",  "cosine")
 THRESHOLD       = float(os.getenv("FACE_THRESHOLD",  "0.22"))      # strict for attendance
 MAX_DIMENSION   = int(os.getenv("FACE_MAX_DIMENSION", "1024"))     # cap image size before processing
+
+# One DeepFace call at a time. The first call downloads the model weights and
+# builds the networks; if the start-up warm-up and a real request did that at
+# the same moment they could clash over the same weight files.
+_model_lock = threading.Lock()
+
+
+def _represent(**kwargs):
+    """DeepFace.represent, one caller at a time (see _model_lock)."""
+    with _model_lock:
+        return DeepFace.represent(**kwargs)
+
+
+def warm_up_models() -> None:
+    """
+    Download the model weights and build the recognition model and face
+    detector once, at start-up, instead of during the first student's selfie.
+    On a free-tier instance the disk is wiped on every restart, so that first
+    request otherwise takes ~45 seconds and the backend gives up waiting.
+    Never raises: a failed warm-up just means the first real request does the
+    work, exactly as before.
+    """
+    started = time.time()
+    try:
+        blank = np.zeros((160, 160, 3), dtype=np.uint8)
+        _represent(
+            img_path=blank,
+            model_name=FACE_MODEL,
+            detector_backend=FACE_DETECTOR,
+            enforce_detection=False,  # a blank image has no face; we only want the models loaded
+            align=True
+        )
+        print(f"🔥 Face models warmed up in {time.time() - started:.1f}s")
+    except Exception as e:
+        print(f"Model warm-up skipped: {e}")
 
 
 def _correct_lighting(img: np.ndarray) -> np.ndarray:
@@ -123,7 +160,7 @@ def generate_face_encoding(image_bytes: bytes) -> List[float]:
     try:
         # enforce_detection=True during registration:
         # if no face found we raise an error rather than storing a useless embedding
-        embeddings = DeepFace.represent(
+        embeddings = _represent(
             img_path=tmp_path,
             model_name=FACE_MODEL,
             detector_backend=FACE_DETECTOR,
@@ -178,7 +215,7 @@ def verify_single_face(
         # This is what prevents "any photo" from passing: without a real face
         # in the selfie, we return an error instead of comparing garbage data.
         try:
-            selfie_embeddings = DeepFace.represent(
+            selfie_embeddings = _represent(
                 img_path=tmp_path,
                 model_name=FACE_MODEL,
                 detector_backend=FACE_DETECTOR,
@@ -270,7 +307,7 @@ def recognize_faces_in_class_photo(
 
     try:
         try:
-            class_embeddings = DeepFace.represent(
+            class_embeddings = _represent(
                 img_path=tmp_path,
                 model_name=FACE_MODEL,
                 detector_backend=FACE_DETECTOR,
