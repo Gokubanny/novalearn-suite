@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { Logo } from "@/components/brand/Logo";
 import { 
   Facebook, 
   Twitter, 
