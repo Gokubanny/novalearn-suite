@@ -92,10 +92,7 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-3 lg:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">N</span>
-              </div>
-              <span className="font-bold text-xl">NexfordEdu</span>
+              <Logo className="h-9" />
             </Link>
             <p className="text-muted-foreground mb-6 max-w-sm">
               Empowering educational institutions with AI-powered tools, biometric attendance, 
