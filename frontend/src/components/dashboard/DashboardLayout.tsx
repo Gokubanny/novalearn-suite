@@ -14,6 +14,7 @@ import {
   Moon
 } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+import { Logo, LogoMark } from '@/components/brand/Logo';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAuth, UserRole } from '@/contexts/AuthContext';

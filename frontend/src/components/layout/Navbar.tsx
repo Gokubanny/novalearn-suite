@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Sun, Moon, Eye, LayoutDashboard, LogOut, ChevronDown } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/useTheme";
 import { AvatarImage } from "@/components/ui/avatar-image";
@@ -109,14 +110,9 @@ export function Navbar() {
             <motion.div
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-2"
+              className="flex items-center"
             >
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-xl">N</span>
-              </div>
-              <span className="font-bold text-xl text-foreground hidden sm:block">
-                NexfordEdu
-              </span>
+              <Logo className="h-9 sm:h-10" />
             </motion.div>
           </Link>
 
